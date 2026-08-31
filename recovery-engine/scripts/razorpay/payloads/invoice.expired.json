@@ -1,0 +1,1 @@
+{"entity":"event","account_id":"acc_test_recovery","event":"invoice.expired","contains":["invoice"],"payload":{"invoice":{"entity":{"id":"inv_test_1","entity":"invoice","receipt":"rcpt_test_1","invoice_number":"INV-TEST-1","customer_id":"cust_test_1","status":"expired","amount":49900,"amount_paid":0,"currency":"INR","expired_at":1710000006}}},"created_at":1710000006}

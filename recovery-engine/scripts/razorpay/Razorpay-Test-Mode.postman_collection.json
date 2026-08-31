@@ -1,0 +1,196 @@
+{
+  "info": {
+    "name": "recovery-engine Razorpay Test Mode",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Create Test Mode fixtures via Razorpay APIs, and POST signed failure webhooks to the local backend."
+  },
+  "variable": [
+    { "key": "razorpayBase", "value": "https://api.razorpay.com/v1" },
+    { "key": "backendBase", "value": "http://localhost:8080" },
+    { "key": "keyId", "value": "rzp_test_xxx" },
+    { "key": "keySecret", "value": "xxx" },
+    { "key": "webhookSecret", "value": "whsec_dev_local" },
+    { "key": "customerId", "value": "" },
+    { "key": "orderId", "value": "" },
+    { "key": "planId", "value": "" },
+    { "key": "subscriptionId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Razorpay API (Test Mode keys)",
+      "auth": {
+        "type": "basic",
+        "basic": [
+          { "key": "username", "value": "{{keyId}}", "type": "string" },
+          { "key": "password", "value": "{{keySecret}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "Create Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('customerId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{razorpayBase}}/customers",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Recovery Engine Test\",\n  \"email\": \"recovery.test@example.com\",\n  \"contact\": \"9000000000\",\n  \"fail_existing\": \"0\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('orderId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{razorpayBase}}/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 49900,\n  \"currency\": \"INR\",\n  \"receipt\": \"rcpt_postman_1\",\n  \"notes\": { \"source\": \"recovery-engine\" }\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Plan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('planId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{razorpayBase}}/plans",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"period\": \"monthly\",\n  \"interval\": 1,\n  \"item\": {\n    \"name\": \"Recovery Engine Test Plan\",\n    \"amount\": 49900,\n    \"currency\": \"INR\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Subscription",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('subscriptionId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{razorpayBase}}/subscriptions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_id\": \"{{planId}}\",\n  \"customer_notify\": 0,\n  \"quantity\": 1,\n  \"total_count\": 12\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Payment Link",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{razorpayBase}}/payment_links",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 49900,\n  \"currency\": \"INR\",\n  \"description\": \"recovery-engine test payment\",\n  \"customer\": {\n    \"name\": \"Recovery Engine Test\",\n    \"email\": \"recovery.test@example.com\",\n    \"contact\": \"+919000000000\"\n  },\n  \"notify\": { \"sms\": false, \"email\": false }\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Local signed webhooks (failure events)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const crypto = require('crypto-js');",
+              "const secret = pm.collectionVariables.get('webhookSecret');",
+              "const body = pm.request.body.raw;",
+              "const sig = crypto.HmacSHA256(body, secret).toString();",
+              "pm.request.headers.upsert({ key: 'X-Razorpay-Signature', value: sig });"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "POST payment.failed",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{backendBase}}/webhooks/razorpay",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"entity\":\"event\",\"account_id\":\"acc_test_recovery\",\"event\":\"payment.failed\",\"contains\":[\"payment\"],\"payload\":{\"payment\":{\"entity\":{\"id\":\"pay_test_fail_1\",\"entity\":\"payment\",\"amount\":49900,\"currency\":\"INR\",\"status\":\"failed\",\"order_id\":\"order_test_1\",\"method\":\"card\",\"error_code\":\"BAD_REQUEST_ERROR\",\"error_description\":\"Payment failed\",\"error_reason\":\"payment_failed\"}}},\"created_at\":1710000001}"
+            }
+          }
+        },
+        {
+          "name": "POST subscription.pending",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{backendBase}}/webhooks/razorpay",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"entity\":\"event\",\"account_id\":\"acc_test_recovery\",\"event\":\"subscription.pending\",\"contains\":[\"subscription\",\"payment\"],\"payload\":{\"subscription\":{\"entity\":{\"id\":\"sub_test_1\",\"status\":\"pending\"}},\"payment\":{\"entity\":{\"id\":\"pay_test_sub_fail_1\",\"status\":\"failed\",\"error_reason\":\"card_declined\"}}},\"created_at\":1710000004}"
+            }
+          }
+        },
+        {
+          "name": "POST subscription.halted",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{backendBase}}/webhooks/razorpay",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"entity\":\"event\",\"account_id\":\"acc_test_recovery\",\"event\":\"subscription.halted\",\"contains\":[\"subscription\"],\"payload\":{\"subscription\":{\"entity\":{\"id\":\"sub_test_1\",\"status\":\"halted\"}}},\"created_at\":1710000005}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

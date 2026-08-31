@@ -1,0 +1,10 @@
+# Do not start this file.
+# Infra lives in recovery-engine/docker-compose.yml (Postgres + Redis + Kafka).
+# Running this nested compose would collide on port 5432.
+#
+# From recovery-engine/:
+#   docker compose up -d
+
+name: revenue-recovery-unused
+
+services: {}

@@ -1,0 +1,40 @@
+# Secrets
+.env
+.env.local
+*.pem
+
+# Java / Gradle
+**/.gradle/
+**/build/
+**/bin/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Python
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+**/uv.toml.bak
+
+# Node / Next.js
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

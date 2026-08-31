@@ -1,0 +1,14 @@
+[project]
+name = "agent-service"
+version = "0.1.0"
+description = "FastAPI + LangGraph + Claude agent service for recovery-engine"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=1.2.0",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "langchain-anthropic>=1.7.0",
+    "langgraph>=1.2.11",
+    "pydantic-settings>=2.15.0",
+    "uvicorn[standard]>=0.52.4",
+]
