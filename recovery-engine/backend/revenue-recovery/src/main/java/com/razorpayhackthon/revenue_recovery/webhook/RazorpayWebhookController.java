@@ -58,7 +58,11 @@ public class RazorpayWebhookController {
 		try {
 			return ResponseEntity.ok(webhookService.ingest(rawBody));
 		} catch (IllegalArgumentException ex) {
+			log.warn("Rejected malformed Razorpay webhook: {}", ex.getMessage());
 			return ResponseEntity.badRequest().build();
+		} catch (WebhookIngestException ex) {
+			log.error("Webhook ingest unavailable: {}", ex.getMessage());
+			return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
 		}
 	}
 }
