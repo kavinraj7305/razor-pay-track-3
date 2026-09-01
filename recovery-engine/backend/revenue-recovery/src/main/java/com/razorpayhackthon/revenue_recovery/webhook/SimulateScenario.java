@@ -59,7 +59,7 @@ public enum SimulateScenario {
 		return "/api/webhooks/simulate/" + slug;
 	}
 
-	static SimulateScenario fromSlug(String slug) {
+	public static SimulateScenario fromSlug(String slug) {
 		for (SimulateScenario scenario : values()) {
 			if (scenario.slug.equals(slug)) {
 				return scenario;

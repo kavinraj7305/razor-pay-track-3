@@ -1,0 +1,32 @@
+---
+description: Thin Spring controllers; keep business logic in services under 200 lines
+globs: recovery-engine/backend/revenue-recovery/**/*.java
+alwaysApply: false
+---
+
+# Controller vs service
+
+- Controllers only map HTTP and **delegate**. No payload building, DB, Kafka, Redis, or reason→action rules in a controller.
+- Razorpay webhook/simulate controllers call a service and return its result. Map exceptions to HTTP in an advice class, not in the handler method.
+- All business logic lives in `service/` subpackages (`service/webhook`, `service/ingest`, `service/plan`), or small helpers those services call.
+
+# Service size
+
+- Each class under `service/` must stay **under 200 lines**. Put new work in the matching subfolder (`webhook`, `ingest`, `plan`) instead of growing one file.
+- Do not put HTTP `ResponseEntity` construction in a service. Throw a typed exception; let the controller/advice choose the status.
+
+```java
+// BAD — logic in the controller
+@RestController
+class WebhookSimulateController {
+  SimulatedFailureResult run() { ingest.consume(buildJson()); }
+}
+
+// GOOD — controller delegates
+@RestController
+class WebhookSimulateController {
+  SimulatedFailureResult simulateOne(@PathVariable String slug) {
+    return simulateService.simulateOne(slug);
+  }
+}
+```

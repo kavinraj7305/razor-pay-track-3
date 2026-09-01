@@ -12,9 +12,13 @@ Last updated: **1 Sep 2026**. Deadline: **before 5 Sep**.
 
 Restart `bootRun`, then [http://localhost:8080/api/webhooks/simulate/all](http://localhost:8080/api/webhooks/simulate/all)
 
+Action plan API (reads `recovery_case` + `recovery_action` + `audit_event`):
+- [http://localhost:8080/api/recovery-cases](http://localhost:8080/api/recovery-cases)
+- `GET /api/recovery-cases/{caseId}`
+
 Beekeeper: `recovery_case` (reason + status) and **`recovery_action`** (`action_type`).
 
-Full flow (API → which tables → how it picks → what is stored): **[reason-to-action.md](./reason-to-action.md)** (flow section at the top, then done/not-done tracker)
+Service folders + what each file is for: **[service-map.md](./service-map.md)**
 
 | Scenario | Action |
 |---|---|

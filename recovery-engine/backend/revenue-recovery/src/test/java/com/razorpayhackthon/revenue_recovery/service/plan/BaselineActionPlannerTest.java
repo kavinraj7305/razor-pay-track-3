@@ -1,4 +1,4 @@
-package com.razorpayhackthon.revenue_recovery.baseline;
+package com.razorpayhackthon.revenue_recovery.service.plan;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

@@ -1,4 +1,4 @@
-package com.razorpayhackthon.revenue_recovery.ingest;
+package com.razorpayhackthon.revenue_recovery.service.ingest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -73,7 +73,7 @@ class RecoveryCaseIngestServiceTest {
 		RecoveryCase recoveryCase = cases.getFirst();
 		assertThat(recoveryCase.getAmountAtRisk()).isEqualByComparingTo(new BigDecimal("499.00"));
 		assertThat(recoveryCase.getCurrency()).isEqualTo("INR");
-		assertThat(recoveryCase.getStatus()).isEqualTo(RecoveryCaseStatus.OPEN);
+		assertThat(recoveryCase.getStatus()).isEqualTo(RecoveryCaseStatus.ACTION_PLANNED);
 		assertThat(recoveryCase.getReason()).isEqualTo("payment_failed");
 		assertThat(merchantRepository.findByMerchantId("acc_ingest_test")).isPresent();
 		assertThat(webhookEventRepository.findByEventId("evt_case_fail_1"))

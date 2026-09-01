@@ -1,4 +1,4 @@
-package com.razorpayhackthon.revenue_recovery.baseline;
+package com.razorpayhackthon.revenue_recovery.service.plan;
 
 import com.razorpayhackthon.revenue_recovery.entity.AuditEvent;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryAction;

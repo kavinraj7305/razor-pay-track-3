@@ -31,7 +31,7 @@ public class RedisWebhookIdempotencyStore implements WebhookIdempotencyStore {
 		redis.delete(key(eventId));
 	}
 
-	static String key(String eventId) {
+	public static String key(String eventId) {
 		return KEY_PREFIX + eventId;
 	}
 }
