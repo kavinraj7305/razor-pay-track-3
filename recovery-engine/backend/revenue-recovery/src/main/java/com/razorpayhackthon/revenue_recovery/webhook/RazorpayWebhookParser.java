@@ -67,6 +67,21 @@ public class RazorpayWebhookParser {
 			}
 			return;
 		}
+		if (eventType.startsWith("checkout.") || eventType.startsWith("payment_link.")) {
+			JsonNode checkout = payload.get("checkout") != null ? nestedEntity(payload, "checkout") : null;
+			JsonNode link = payload.get("payment_link") != null ? nestedEntity(payload, "payment_link") : null;
+			if (checkout == null && link == null) {
+				throw new IllegalArgumentException("payload.checkout.entity or payload.payment_link.entity is required");
+			}
+			if (checkout != null) {
+				requireId(checkout, "payload.checkout.entity.id");
+				requirePositiveAmount(checkout, "payload.checkout.entity.amount");
+			}
+			if (link != null) {
+				requireId(link, "payload.payment_link.entity.id");
+			}
+			return;
+		}
 		if (eventType.startsWith("order.")) {
 			JsonNode order = payload.get("order") != null ? nestedEntity(payload, "order") : null;
 			JsonNode payment = payload.get("payment") != null ? nestedEntity(payload, "payment") : null;

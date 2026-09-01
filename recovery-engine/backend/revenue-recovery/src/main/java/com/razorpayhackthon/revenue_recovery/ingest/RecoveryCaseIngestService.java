@@ -1,16 +1,20 @@
 package com.razorpayhackthon.revenue_recovery.ingest;
 
+import com.razorpayhackthon.revenue_recovery.baseline.BaselineActionPlanner;
+import com.razorpayhackthon.revenue_recovery.entity.CheckoutSession;
 import com.razorpayhackthon.revenue_recovery.entity.Customer;
 import com.razorpayhackthon.revenue_recovery.entity.Merchant;
 import com.razorpayhackthon.revenue_recovery.entity.Payment;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
 import com.razorpayhackthon.revenue_recovery.entity.WebhookEvent;
+import com.razorpayhackthon.revenue_recovery.enums.CheckoutSessionStatus;
 import com.razorpayhackthon.revenue_recovery.enums.CustomerStatus;
 import com.razorpayhackthon.revenue_recovery.enums.MerchantStatus;
 import com.razorpayhackthon.revenue_recovery.enums.PaymentStatus;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryCaseStatus;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryPriority;
 import com.razorpayhackthon.revenue_recovery.enums.RecoverySource;
+import com.razorpayhackthon.revenue_recovery.repository.CheckoutSessionRepository;
 import com.razorpayhackthon.revenue_recovery.repository.CustomerRepository;
 import com.razorpayhackthon.revenue_recovery.repository.MerchantRepository;
 import com.razorpayhackthon.revenue_recovery.repository.PaymentRepository;
@@ -47,7 +51,9 @@ public class RecoveryCaseIngestService {
 	private final MerchantRepository merchantRepository;
 	private final CustomerRepository customerRepository;
 	private final PaymentRepository paymentRepository;
+	private final CheckoutSessionRepository checkoutSessionRepository;
 	private final RecoveryCaseRepository recoveryCaseRepository;
+	private final BaselineActionPlanner baselineActionPlanner;
 
 	public RecoveryCaseIngestService(
 			RazorpayWebhookParser parser,
@@ -56,14 +62,18 @@ public class RecoveryCaseIngestService {
 			MerchantRepository merchantRepository,
 			CustomerRepository customerRepository,
 			PaymentRepository paymentRepository,
-			RecoveryCaseRepository recoveryCaseRepository) {
+			CheckoutSessionRepository checkoutSessionRepository,
+			RecoveryCaseRepository recoveryCaseRepository,
+			BaselineActionPlanner baselineActionPlanner) {
 		this.parser = parser;
 		this.jsonMapper = jsonMapper;
 		this.webhookEventRepository = webhookEventRepository;
 		this.merchantRepository = merchantRepository;
 		this.customerRepository = customerRepository;
 		this.paymentRepository = paymentRepository;
+		this.checkoutSessionRepository = checkoutSessionRepository;
 		this.recoveryCaseRepository = recoveryCaseRepository;
+		this.baselineActionPlanner = baselineActionPlanner;
 	}
 
 	@Transactional
@@ -72,7 +82,11 @@ public class RecoveryCaseIngestService {
 		WebhookEvent stored = persistInbox(parsed);
 
 		switch (parsed.eventType()) {
-			case "payment.failed", "subscription.pending", "subscription.halted", "invoice.expired" ->
+			case "payment.failed",
+					"subscription.pending",
+					"subscription.halted",
+					"invoice.expired",
+					"checkout.abandoned" ->
 					openCase(parsed);
 			case "payment.captured", "order.paid", "invoice.paid", "subscription.charged" ->
 					closeCase(parsed);
@@ -122,6 +136,9 @@ public class RecoveryCaseIngestService {
 		if ("payment.failed".equals(parsed.eventType())) {
 			upsertFailedPayment(merchant, customer, parsed, draft);
 		}
+		if ("checkout.abandoned".equals(parsed.eventType())) {
+			upsertAbandonedCheckout(merchant, customer, parsed, draft);
+		}
 
 		RecoveryCase recoveryCase = new RecoveryCase();
 		recoveryCase.setCaseId("rc_" + UUID.randomUUID().toString().replace("-", ""));
@@ -135,6 +152,7 @@ public class RecoveryCaseIngestService {
 		recoveryCase.setStatus(RecoveryCaseStatus.OPEN);
 		recoveryCase.setPriority(draft.priority());
 		recoveryCaseRepository.save(recoveryCase);
+		baselineActionPlanner.planFor(recoveryCase);
 		log.info(
 				"Opened RecoveryCase caseId={} source={} sourceId={} amountAtRisk={}",
 				recoveryCase.getCaseId(),
@@ -165,6 +183,7 @@ public class RecoveryCaseIngestService {
 			recoveryCase.setStatus(RecoveryCaseStatus.RECOVERED);
 			recoveryCase.setClosedAt(now);
 			recoveryCaseRepository.save(recoveryCase);
+			baselineActionPlanner.recordRecovered(recoveryCase);
 			log.info(
 					"Closed RecoveryCase caseId={} source={} sourceId={}",
 					recoveryCase.getCaseId(),
@@ -178,13 +197,20 @@ public class RecoveryCaseIngestService {
 		return switch (parsed.eventType()) {
 			case "payment.failed" -> {
 				JsonNode payment = RazorpayWebhookParser.nestedEntity(payload, "payment");
+				String failReason = reason(payment, parsed.eventType());
+				RecoveryPriority priority =
+						"payment_risk_check_failed".equals(failReason)
+								? RecoveryPriority.CRITICAL
+								: "insufficient_funds".equals(failReason)
+										? RecoveryPriority.MEDIUM
+										: RecoveryPriority.HIGH;
 				yield new CaseDraft(
 						RecoverySource.PAYMENT,
 						text(payment, "id"),
 						fromPaise(payment.get("amount")),
 						currency(payment),
-						reason(payment, parsed.eventType()),
-						RecoveryPriority.HIGH);
+						failReason,
+						priority);
 			}
 			case "subscription.pending", "subscription.halted" -> {
 				JsonNode subscription = RazorpayWebhookParser.nestedEntity(payload, "subscription");
@@ -193,9 +219,9 @@ public class RecoveryCaseIngestService {
 						payment != null && payment.get("amount") != null && payment.get("amount").isNumber()
 								? fromPaise(payment.get("amount"))
 								: BigDecimal.ZERO;
-				String reason = payment != null
-						? reason(payment, parsed.eventType())
-						: truncate(parsed.eventType(), 100);
+				String reason = "subscription.halted".equals(parsed.eventType())
+						? "subscription.halted"
+						: "subscription.pending";
 				yield new CaseDraft(
 						RecoverySource.SUBSCRIPTION,
 						text(subscription, "id"),
@@ -219,6 +245,16 @@ public class RecoveryCaseIngestService {
 						amount,
 						currency(invoice),
 						truncate("invoice.expired", 100),
+						RecoveryPriority.MEDIUM);
+			}
+			case "checkout.abandoned" -> {
+				JsonNode checkout = RazorpayWebhookParser.nestedEntity(payload, "checkout");
+				yield new CaseDraft(
+						RecoverySource.CHECKOUT_SESSION,
+						text(checkout, "id"),
+						fromPaise(checkout.get("amount")),
+						currency(checkout),
+						truncate("checkout.abandoned", 100),
 						RecoveryPriority.MEDIUM);
 			}
 			default -> throw new IllegalArgumentException("Unsupported recovery event " + parsed.eventType());
@@ -245,10 +281,14 @@ public class RecoveryCaseIngestService {
 		JsonNode subscription = RazorpayWebhookParser.nestedEntityOrNull(payload, "subscription");
 		JsonNode invoice = RazorpayWebhookParser.nestedEntityOrNull(payload, "invoice");
 
+		JsonNode checkout = RazorpayWebhookParser.nestedEntityOrNull(payload, "checkout");
+
 		String razorpayCustomerId = firstNonBlank(
-				textOrNull(subscription, "customer_id"), textOrNull(invoice, "customer_id"));
-		String email = textOrNull(payment, "email");
-		String phone = textOrNull(payment, "contact");
+				textOrNull(subscription, "customer_id"),
+				textOrNull(invoice, "customer_id"),
+				textOrNull(checkout, "customer_id"));
+		String email = firstNonBlank(textOrNull(payment, "email"), textOrNull(checkout, "email"));
+		String phone = firstNonBlank(textOrNull(payment, "contact"), textOrNull(checkout, "contact"));
 		if (razorpayCustomerId == null && email == null && phone == null) {
 			return null;
 		}
@@ -293,6 +333,23 @@ public class RecoveryCaseIngestService {
 		payment.setStatus(PaymentStatus.FAILED);
 		payment.setPaymentType(textOrNull(paymentNode, "method"));
 		paymentRepository.save(payment);
+	}
+
+	private void upsertAbandonedCheckout(
+			Merchant merchant, Customer customer, ParsedRazorpayEvent parsed, CaseDraft draft) {
+		JsonNode checkoutNode =
+				RazorpayWebhookParser.nestedEntity(parsed.root().get("payload"), "checkout");
+		String checkoutId = text(checkoutNode, "id");
+		CheckoutSession session =
+				checkoutSessionRepository.findByCheckoutSessionId(checkoutId).orElseGet(CheckoutSession::new);
+		session.setCheckoutSessionId(checkoutId);
+		session.setMerchant(merchant);
+		session.setCustomer(customer);
+		session.setAmount(draft.amountAtRisk());
+		session.setCurrency(draft.currency());
+		session.setStatus(CheckoutSessionStatus.ABANDONED);
+		session.setAbandonedAt(LocalDateTime.now());
+		checkoutSessionRepository.save(session);
 	}
 
 	private static String idOf(JsonNode payload, String name) {
