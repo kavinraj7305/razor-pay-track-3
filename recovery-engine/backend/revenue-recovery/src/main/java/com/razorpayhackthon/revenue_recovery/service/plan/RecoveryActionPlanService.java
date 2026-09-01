@@ -7,9 +7,11 @@ import com.razorpayhackthon.revenue_recovery.dto.RecoveryCaseSummary;
 import com.razorpayhackthon.revenue_recovery.entity.AuditEvent;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryAction;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
+import com.razorpayhackthon.revenue_recovery.enums.RecoveryCaseStatus;
 import com.razorpayhackthon.revenue_recovery.repository.AuditEventRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryActionRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryCaseRepository;
+import com.razorpayhackthon.revenue_recovery.service.plan.handler.insufficientfunds.InsufficientFundsHandler;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,14 +24,20 @@ public class RecoveryActionPlanService {
 	private final RecoveryCaseRepository recoveryCaseRepository;
 	private final RecoveryActionRepository recoveryActionRepository;
 	private final AuditEventRepository auditEventRepository;
+	private final BaselineActionPlanner baselineActionPlanner;
+	private final InsufficientFundsHandler insufficientFundsHandler;
 
 	public RecoveryActionPlanService(
 			RecoveryCaseRepository recoveryCaseRepository,
 			RecoveryActionRepository recoveryActionRepository,
-			AuditEventRepository auditEventRepository) {
+			AuditEventRepository auditEventRepository,
+			BaselineActionPlanner baselineActionPlanner,
+			InsufficientFundsHandler insufficientFundsHandler) {
 		this.recoveryCaseRepository = recoveryCaseRepository;
 		this.recoveryActionRepository = recoveryActionRepository;
 		this.auditEventRepository = auditEventRepository;
+		this.baselineActionPlanner = baselineActionPlanner;
+		this.insufficientFundsHandler = insufficientFundsHandler;
 	}
 
 	@Transactional(readOnly = true)
@@ -39,14 +47,47 @@ public class RecoveryActionPlanService {
 				.toList();
 	}
 
+	@Transactional
+	public RecoveryCasePlanResponse runBaselinePlan(String caseId) {
+		RecoveryCase recoveryCase = requireOpen(caseId);
+		baselineActionPlanner.planFor(recoveryCase);
+		return getPlan(caseId);
+	}
+
+	@Transactional
+	public RecoveryCasePlanResponse executeNext(String caseId) {
+		RecoveryCase recoveryCase = requireOpen(caseId);
+		if (!insufficientFundsHandler.supports(recoveryCase)) {
+			throw new ResponseStatusException(
+					HttpStatus.CONFLICT, "execute is only wired for insufficient_funds right now");
+		}
+		baselineActionPlanner.planFor(recoveryCase);
+		insufficientFundsHandler.executeNext(recoveryCase);
+		return getPlan(caseId);
+	}
+
 	@Transactional(readOnly = true)
 	public RecoveryCasePlanResponse getPlan(String caseId) {
-		RecoveryCase recoveryCase = recoveryCaseRepository
-				.findByCaseId(caseId)
-				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "recovery case not found"));
+		RecoveryCase recoveryCase = requireCase(caseId);
 		List<RecoveryAction> actions = recoveryActionRepository.findByRecoveryCase_CaseId(caseId);
 		List<AuditEvent> audit = auditEventRepository.findByRecoveryCase_CaseIdOrderByCreatedAtAsc(caseId);
 		return toPlan(recoveryCase, actions, audit);
+	}
+
+	private RecoveryCase requireOpen(String caseId) {
+		RecoveryCase recoveryCase = requireCase(caseId);
+		if (recoveryCase.getStatus() == RecoveryCaseStatus.RECOVERED
+				|| recoveryCase.getStatus() == RecoveryCaseStatus.FAILED
+				|| recoveryCase.getStatus() == RecoveryCaseStatus.EXPIRED) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "case is closed");
+		}
+		return recoveryCase;
+	}
+
+	private RecoveryCase requireCase(String caseId) {
+		return recoveryCaseRepository
+				.findByCaseId(caseId)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "recovery case not found"));
 	}
 
 	private RecoveryCaseSummary toSummary(RecoveryCase recoveryCase) {

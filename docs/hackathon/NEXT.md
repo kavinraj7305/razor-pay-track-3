@@ -12,9 +12,11 @@ Last updated: **1 Sep 2026**. Deadline: **before 5 Sep**.
 
 Restart `bootRun`, then [http://localhost:8080/api/webhooks/simulate/all](http://localhost:8080/api/webhooks/simulate/all)
 
-Action plan API (reads `recovery_case` + `recovery_action` + `audit_event`):
+Action plan API:
 - [http://localhost:8080/api/recovery-cases](http://localhost:8080/api/recovery-cases)
-- `GET /api/recovery-cases/{caseId}`
+- `GET /api/recovery-cases/{caseId}` — read
+- `GET or POST /api/recovery-cases/{caseId}/plan` — run dumb planner
+- `GET or POST /api/recovery-cases/{caseId}/execute` — run next **insufficient_funds** step (retry + DEV SMS)
 
 Beekeeper: `recovery_case` (reason + status) and **`recovery_action`** (`action_type`).
 

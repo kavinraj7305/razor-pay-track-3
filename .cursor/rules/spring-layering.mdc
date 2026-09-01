@@ -7,7 +7,7 @@ alwaysApply: false
 # Controller vs service
 
 - Controllers only map HTTP and **delegate**. No payload building, DB, Kafka, Redis, or reason→action rules in a controller.
-- Razorpay webhook/simulate controllers call a service and return its result. Map exceptions to HTTP in an advice class, not in the handler method.
+- Map exceptions to HTTP in `exception/` (`@RestControllerAdvice`), not in the controller method.
 - All business logic lives in `service/` subpackages (`service/webhook`, `service/ingest`, `service/plan`), or small helpers those services call.
 
 # Service size

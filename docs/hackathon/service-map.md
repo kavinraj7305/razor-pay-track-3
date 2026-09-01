@@ -4,13 +4,14 @@ Path: `recovery-engine/backend/revenue-recovery/src/main/java/com/razorpayhackth
 
 Controllers only call these. Each service file stays under **200 lines**.
 
-Not in `service/`: `webhook/` (Razorpay parse/HMAC/payloads) and `controller/` (HTTP only).
+Not in `service/`: `webhook/` (Razorpay parse/HMAC/payloads), `controller/` (HTTP only), `exception/` (HTTP status mapping).
 
 ```
 service/
 ├── webhook/     receive + simulate Razorpay events
 ├── ingest/      turn an event into a recovery_case
-└── plan/        choose the action, and read the plan back
+└── plan/        pick a reason handler and write/read the action
+    └── handler/ one dumb file per reason (insufficient_funds first)
 ```
 
 ---
@@ -52,8 +53,14 @@ Needed so a case is not detection-only. Writes `recovery_action` + `audit_event`
 
 | File | Needed for |
 |---|---|
-| `BaselineActionPlanner.java` | **Writes** the first action from `reason` (retry vs pay-link vs PTP vs stop). Called when a case is opened |
-| `RecoveryActionPlanService.java` | **Reads** case + actions + audit for `GET /api/recovery-cases` and `GET /api/recovery-cases/{caseId}` |
+| `BaselineActionPlanner.java` | **Picks** the first matching reason handler and **writes** `recovery_action` + `audit_event` |
+| `PlannedDecision.java` | The action the handler chose (type, status, note) |
+| `handler/BaselineReasonHandler.java` | Interface: `supports(case)` + `decide(case)` |
+| `handler/insufficientfunds/` | Dumb path for `insufficient_funds` (4 steps) |
+| `handler/DefaultReasonHandler.java` | Everything else until we split more reason folders |
+| `RecoveryActionPlanService.java` | Read plan; `/{caseId}/plan` and `/{caseId}/execute` |
+| `notify/DevSmsService.java` | Free DEV SMS (logs only, no paid gateway) |
+| `retry/DevPaymentRetryService.java` | Free DEV retry (no Razorpay charge; always fails so you can walk all 4 steps) |
 
 Without this folder: cases exist with no `action_type`, and the plan API has nothing to return.
 
