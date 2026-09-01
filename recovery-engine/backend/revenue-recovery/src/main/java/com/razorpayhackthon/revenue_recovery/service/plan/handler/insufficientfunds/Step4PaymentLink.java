@@ -1,22 +1,18 @@
 package com.razorpayhackthon.revenue_recovery.service.plan.handler.insufficientfunds;
 
-import com.razorpayhackthon.revenue_recovery.entity.Customer;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryAction;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
-import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionStatus;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionType;
-import com.razorpayhackthon.revenue_recovery.enums.RecoveryCaseStatus;
-import com.razorpayhackthon.revenue_recovery.service.notify.DevSmsService;
-import java.time.LocalDateTime;
+import com.razorpayhackthon.revenue_recovery.service.plan.handler.DevPlaybookOps;
 import org.springframework.stereotype.Component;
 
-@Component
+@Component("insufficientfundsStep4PaymentLink")
 class Step4PaymentLink implements InsufficientFundsStep {
 
-	private final DevSmsService smsService;
+	private final DevPlaybookOps ops;
 
-	Step4PaymentLink(DevSmsService smsService) {
-		this.smsService = smsService;
+	Step4PaymentLink(DevPlaybookOps ops) {
+		this.ops = ops;
 	}
 
 	@Override
@@ -36,15 +32,6 @@ class Step4PaymentLink implements InsufficientFundsStep {
 
 	@Override
 	public void execute(RecoveryCase recoveryCase, RecoveryAction action) {
-		String link = "https://rzp.io/i/dev-" + recoveryCase.getCaseId();
-		Customer customer = recoveryCase.getCustomer();
-		String to = customer == null ? null : customer.getPhone();
-		smsService.send(
-				to,
-				"Pay ₹" + recoveryCase.getAmountAtRisk() + " when you have funds: " + link + " (DEV SMS)");
-		action.setStatus(RecoveryActionStatus.EXECUTED);
-		action.setExecutedAt(LocalDateTime.now());
-		action.setReason(planNote() + " — " + link);
-		recoveryCase.setStatus(RecoveryCaseStatus.ACTION_PLANNED);
+		ops.payLink(recoveryCase, action, planNote());
 	}
 }

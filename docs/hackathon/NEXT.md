@@ -1,6 +1,13 @@
+Created: **1 Sep 2026** (local demo checklist)
+Reason: one page of URLs so we can prove Day 1–2 baseline in the browser.
+Last updated: **1 Sep 2026, 19:40 IST**
+Why updated: point at the playbook-first → ML story in the intelligence plan.
+
 # NEXT — do this now
 
-Last updated: **1 Sep 2026**. Deadline: **before 5 Sep**.
+Deadline: **before 5 Sep 2026**.
+
+**Build order now → [intelligence-layer-plan.md](./intelligence-layer-plan.md)** (dated timeline + **why ML after playbooks**). Do **not** start `recovery.events` / cooldown Redis next.
 
 ---
 
@@ -9,6 +16,7 @@ Last updated: **1 Sep 2026**. Deadline: **before 5 Sep**.
 - Day 1 webhook → `recovery_case`
 - 8 simulate scenarios
 - **Baseline actions** (no Kafka / Redis yet): each new case gets a `recovery_action` + `audit_event`
+- **Synthetic batch** (Step 3.4): **400 labelled rows in Postgres** merchant `acc_syn_training`. Label = `recovery_outcome.result`. CSV under `ml-service/data/` is an export. Regenerate + seed: `uv run python scripts/generate_synthetic.py` from `ml-service/`. Beekeeper: `WHERE merchant_id = 'acc_syn_training'`.
 
 Restart `bootRun`, then [http://localhost:8080/api/webhooks/simulate/all](http://localhost:8080/api/webhooks/simulate/all)
 
@@ -16,7 +24,7 @@ Action plan API:
 - [http://localhost:8080/api/recovery-cases](http://localhost:8080/api/recovery-cases)
 - `GET /api/recovery-cases/{caseId}` — read
 - `GET or POST /api/recovery-cases/{caseId}/plan` — run dumb planner
-- `GET or POST /api/recovery-cases/{caseId}/execute` — run next **insufficient_funds** step (retry + DEV SMS)
+- `GET or POST /api/recovery-cases/{caseId}/execute` — run the next 4-step playbook action for that case’s reason (DEV retry/SMS/pay-link)
 
 Beekeeper: `recovery_case` (reason + status) and **`recovery_action`** (`action_type`).
 
@@ -35,15 +43,15 @@ Service folders + what each file is for: **[service-map.md](./service-map.md)**
 
 ---
 
-## Next after you confirm actions in Beekeeper
+## Next (2 Sep)
 
-1. **Kafka batch** — move this planner off the HTTP thread onto `recovery.events` / `action.events`
-2. **Redis cooldown** — `recovery:cooldown:{customerId}`, retry counter, case lock
+1. **Customer features** (Step 3.1) from the synthetic CSV
+2. FastAPI `POST /predict` → propose-only agent
 
-Do not start ML or frontend until those two are in.
+Kafka `recovery.events` / `action.events` and Redis cooldown/lock wait until those curl. Detail: [intelligence-layer-plan.md](./intelligence-layer-plan.md).
 
 ---
 
 ## Not next
 
-Voice, Vault, RLS, 80 error codes.
+Voice, Vault, RLS, 80 error codes, new Kafka topics, frontend until `/predict` works.

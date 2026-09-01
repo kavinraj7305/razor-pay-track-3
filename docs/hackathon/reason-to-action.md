@@ -91,7 +91,7 @@ Reads `recovery_case.reason` (lowercased) and `recovery_case.source`. First matc
 | reason has `insufficient_funds` / gateway / bank / `subscription.pending` | `RETRY_PAYMENT` PLANNED |
 | anything else (`card_declined`, unknown) | `RETRY_PAYMENT` PLANNED (default) |
 
-Nothing is executed yet (no real retry, no real pay-link). Rows are **planned**. Kafka batch + Redis cooldown come next.
+Planner writes the **first** step as `PLANNED` (or `CANCELLED` for risk/cancel). `GET|POST /api/recovery-cases/{caseId}/execute` walks the rest of that reason’s 4-step playbook (DEV retry/SMS/pay-link — no real Razorpay charge). Kafka batch + Redis cooldown come next.
 
 ### What you should see in Beekeeper
 

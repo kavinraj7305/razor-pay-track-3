@@ -18,4 +18,6 @@ public interface RecoveryCaseRepository extends JpaRepository<RecoveryCase, Long
 	List<RecoveryCase> findBySourceAndStatus(RecoverySource source, RecoveryCaseStatus status);
 
 	List<RecoveryCase> findAllByOrderByCreatedAtDesc();
+
+	List<RecoveryCase> findByMerchant_MerchantIdNotOrderByCreatedAtDesc(String merchantId);
 }

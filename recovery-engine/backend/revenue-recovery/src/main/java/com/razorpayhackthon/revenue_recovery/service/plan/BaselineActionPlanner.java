@@ -94,7 +94,7 @@ public class BaselineActionPlanner {
 						"amountAtRisk", String.valueOf(recoveryCase.getAmountAtRisk())));
 	}
 
-	BaselineReasonHandler pick(RecoveryCase recoveryCase) {
+	public BaselineReasonHandler pick(RecoveryCase recoveryCase) {
 		return reasonHandlers.stream()
 				.filter(handler -> handler.supports(recoveryCase))
 				.findFirst()

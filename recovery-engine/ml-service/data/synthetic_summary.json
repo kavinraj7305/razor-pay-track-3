@@ -1,0 +1,90 @@
+{
+  "n_events": 400,
+  "n_customers": 126,
+  "paid_eventually_rate": 0.47,
+  "amount_at_risk_inr": 2236680.67,
+  "amount_recovered_inr": 563140.95,
+  "risk_80k_count": 10,
+  "by_workflow": {
+    "checkout_abandon": 80,
+    "payment_subscription_fail": 320
+  },
+  "by_reason": [
+    {
+      "reason": "captured",
+      "n": 30,
+      "paid": 30,
+      "amount_at_risk_inr": 32706.25,
+      "amount_recovered_inr": 32706.25,
+      "paid_rate": 1.0
+    },
+    {
+      "reason": "card_expired",
+      "n": 50,
+      "paid": 23,
+      "amount_at_risk_inr": 131674.96,
+      "amount_recovered_inr": 58501.05,
+      "paid_rate": 0.46
+    },
+    {
+      "reason": "checkout.abandoned",
+      "n": 80,
+      "paid": 35,
+      "amount_at_risk_inr": 110736.81,
+      "amount_recovered_inr": 48390.48,
+      "paid_rate": 0.4375
+    },
+    {
+      "reason": "insufficient_funds",
+      "n": 70,
+      "paid": 45,
+      "amount_at_risk_inr": 119948.56,
+      "amount_recovered_inr": 72650.68,
+      "paid_rate": 0.6429
+    },
+    {
+      "reason": "invoice.expired",
+      "n": 40,
+      "paid": 16,
+      "amount_at_risk_inr": 507480.34,
+      "amount_recovered_inr": 197382.23,
+      "paid_rate": 0.4
+    },
+    {
+      "reason": "payment_risk_check_failed",
+      "n": 40,
+      "paid": 2,
+      "amount_at_risk_inr": 1183881.17,
+      "amount_recovered_inr": 90145.13,
+      "paid_rate": 0.05
+    },
+    {
+      "reason": "subscription.halted",
+      "n": 40,
+      "paid": 15,
+      "amount_at_risk_inr": 87897.06,
+      "amount_recovered_inr": 36670.22,
+      "paid_rate": 0.375
+    },
+    {
+      "reason": "subscription.pending",
+      "n": 50,
+      "paid": 22,
+      "amount_at_risk_inr": 62355.52,
+      "amount_recovered_inr": 26694.91,
+      "paid_rate": 0.44
+    }
+  ],
+  "seed": 42,
+  "merchant_id": "acc_syn_training",
+  "files": {
+    "csv": "data/synthetic_events.csv",
+    "json": "data/synthetic_events.json"
+  },
+  "postgres": {
+    "cases": 400,
+    "paid": 188,
+    "customers": 126,
+    "payments": 2155
+  }
+}

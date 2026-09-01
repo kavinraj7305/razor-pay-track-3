@@ -2,22 +2,17 @@ package com.razorpayhackthon.revenue_recovery.service.plan.handler.insufficientf
 
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryAction;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
-import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionStatus;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionType;
-import com.razorpayhackthon.revenue_recovery.service.retry.DevPaymentRetryService;
-import com.razorpayhackthon.revenue_recovery.service.retry.DevPaymentRetryService.Result;
-import java.time.LocalDateTime;
+import com.razorpayhackthon.revenue_recovery.service.plan.handler.DevPlaybookOps;
 import org.springframework.stereotype.Component;
 
-@Component
+@Component("insufficientfundsStep2SecondRetry")
 class Step2SecondRetry implements InsufficientFundsStep {
 
-	private final DevPaymentRetryService retryService;
-	private final InsufficientFundsAttemptRecorder attemptRecorder;
+	private final DevPlaybookOps ops;
 
-	Step2SecondRetry(DevPaymentRetryService retryService, InsufficientFundsAttemptRecorder attemptRecorder) {
-		this.retryService = retryService;
-		this.attemptRecorder = attemptRecorder;
+	Step2SecondRetry(DevPlaybookOps ops) {
+		this.ops = ops;
 	}
 
 	@Override
@@ -37,10 +32,6 @@ class Step2SecondRetry implements InsufficientFundsStep {
 
 	@Override
 	public void execute(RecoveryCase recoveryCase, RecoveryAction action) {
-		Result result = retryService.retry(recoveryCase, 2);
-		attemptRecorder.record(recoveryCase, 2, result);
-		action.setStatus(result.success() ? RecoveryActionStatus.EXECUTED : RecoveryActionStatus.FAILED);
-		action.setExecutedAt(LocalDateTime.now());
-		action.setReason(planNote() + " — " + result.message());
+		ops.retryAndFail(recoveryCase, action, 2, planNote());
 	}
 }

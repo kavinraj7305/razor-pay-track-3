@@ -1,4 +1,4 @@
-package com.razorpayhackthon.revenue_recovery.service.plan.handler.insufficientfunds;
+package com.razorpayhackthon.revenue_recovery.service.retry;
 
 import com.razorpayhackthon.revenue_recovery.entity.Payment;
 import com.razorpayhackthon.revenue_recovery.entity.PaymentAttempt;
@@ -6,23 +6,22 @@ import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
 import com.razorpayhackthon.revenue_recovery.enums.PaymentAttemptStatus;
 import com.razorpayhackthon.revenue_recovery.repository.PaymentAttemptRepository;
 import com.razorpayhackthon.revenue_recovery.repository.PaymentRepository;
-import com.razorpayhackthon.revenue_recovery.service.retry.DevPaymentRetryService.Result;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 @Component
-class InsufficientFundsAttemptRecorder {
+public class DevPaymentAttemptRecorder {
 
 	private final PaymentRepository paymentRepository;
 	private final PaymentAttemptRepository paymentAttemptRepository;
 
-	InsufficientFundsAttemptRecorder(
+	public DevPaymentAttemptRecorder(
 			PaymentRepository paymentRepository, PaymentAttemptRepository paymentAttemptRepository) {
 		this.paymentRepository = paymentRepository;
 		this.paymentAttemptRepository = paymentAttemptRepository;
 	}
 
-	void record(RecoveryCase recoveryCase, int attemptNumber, Result result) {
+	public void record(RecoveryCase recoveryCase, int attemptNumber, DevPaymentRetryService.Result result) {
 		Payment payment = paymentRepository.findByPaymentId(recoveryCase.getSourceId()).orElse(null);
 		if (payment == null) {
 			return;

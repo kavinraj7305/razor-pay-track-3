@@ -1,30 +1,18 @@
 package com.razorpayhackthon.revenue_recovery.service.plan.handler.insufficientfunds;
 
-import com.razorpayhackthon.revenue_recovery.entity.Customer;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryAction;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
-import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionStatus;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionType;
-import com.razorpayhackthon.revenue_recovery.service.notify.DevSmsService;
-import com.razorpayhackthon.revenue_recovery.service.retry.DevPaymentRetryService;
-import com.razorpayhackthon.revenue_recovery.service.retry.DevPaymentRetryService.Result;
-import java.time.LocalDateTime;
+import com.razorpayhackthon.revenue_recovery.service.plan.handler.DevPlaybookOps;
 import org.springframework.stereotype.Component;
 
-@Component
+@Component("insufficientfundsStep3RetryWithSms")
 class Step3RetryWithSms implements InsufficientFundsStep {
 
-	private final DevPaymentRetryService retryService;
-	private final InsufficientFundsAttemptRecorder attemptRecorder;
-	private final DevSmsService smsService;
+	private final DevPlaybookOps ops;
 
-	Step3RetryWithSms(
-			DevPaymentRetryService retryService,
-			InsufficientFundsAttemptRecorder attemptRecorder,
-			DevSmsService smsService) {
-		this.retryService = retryService;
-		this.attemptRecorder = attemptRecorder;
-		this.smsService = smsService;
+	Step3RetryWithSms(DevPlaybookOps ops) {
+		this.ops = ops;
 	}
 
 	@Override
@@ -44,17 +32,11 @@ class Step3RetryWithSms implements InsufficientFundsStep {
 
 	@Override
 	public void execute(RecoveryCase recoveryCase, RecoveryAction action) {
-		Result result = retryService.retry(recoveryCase, 3);
-		attemptRecorder.record(recoveryCase, 3, result);
-		Customer customer = recoveryCase.getCustomer();
-		String to = customer == null ? null : customer.getPhone();
-		smsService.send(
-				to,
+		ops.retryAndFail(recoveryCase, action, 3, planNote());
+		ops.sms(
+				recoveryCase,
 				"Your ₹"
 						+ recoveryCase.getAmountAtRisk()
 						+ " payment failed (insufficient funds). Last auto-retry ran. (DEV SMS)");
-		action.setStatus(result.success() ? RecoveryActionStatus.EXECUTED : RecoveryActionStatus.FAILED);
-		action.setExecutedAt(LocalDateTime.now());
-		action.setReason(planNote() + " — " + result.message() + " + DEV SMS");
 	}
 }

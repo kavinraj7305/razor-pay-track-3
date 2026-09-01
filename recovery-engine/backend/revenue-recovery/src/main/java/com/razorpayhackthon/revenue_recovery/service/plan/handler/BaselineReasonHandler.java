@@ -9,6 +9,8 @@ public interface BaselineReasonHandler {
 
 	PlannedDecision decide(RecoveryCase recoveryCase);
 
+	int executeNext(RecoveryCase recoveryCase);
+
 	default String reasonOf(RecoveryCase recoveryCase) {
 		return recoveryCase.getReason() == null ? "" : recoveryCase.getReason().toLowerCase();
 	}

@@ -11,7 +11,6 @@ import com.razorpayhackthon.revenue_recovery.enums.RecoveryCaseStatus;
 import com.razorpayhackthon.revenue_recovery.repository.AuditEventRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryActionRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryCaseRepository;
-import com.razorpayhackthon.revenue_recovery.service.plan.handler.insufficientfunds.InsufficientFundsHandler;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -21,28 +20,29 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class RecoveryActionPlanService {
 
+	private static final String ML_TRAINING_MERCHANT_ID = "acc_syn_training";
+
 	private final RecoveryCaseRepository recoveryCaseRepository;
 	private final RecoveryActionRepository recoveryActionRepository;
 	private final AuditEventRepository auditEventRepository;
 	private final BaselineActionPlanner baselineActionPlanner;
-	private final InsufficientFundsHandler insufficientFundsHandler;
 
 	public RecoveryActionPlanService(
 			RecoveryCaseRepository recoveryCaseRepository,
 			RecoveryActionRepository recoveryActionRepository,
 			AuditEventRepository auditEventRepository,
-			BaselineActionPlanner baselineActionPlanner,
-			InsufficientFundsHandler insufficientFundsHandler) {
+			BaselineActionPlanner baselineActionPlanner) {
 		this.recoveryCaseRepository = recoveryCaseRepository;
 		this.recoveryActionRepository = recoveryActionRepository;
 		this.auditEventRepository = auditEventRepository;
 		this.baselineActionPlanner = baselineActionPlanner;
-		this.insufficientFundsHandler = insufficientFundsHandler;
 	}
 
 	@Transactional(readOnly = true)
 	public List<RecoveryCaseSummary> list() {
-		return recoveryCaseRepository.findAllByOrderByCreatedAtDesc().stream()
+		return recoveryCaseRepository
+				.findByMerchant_MerchantIdNotOrderByCreatedAtDesc(ML_TRAINING_MERCHANT_ID)
+				.stream()
 				.map(this::toSummary)
 				.toList();
 	}
@@ -57,12 +57,8 @@ public class RecoveryActionPlanService {
 	@Transactional
 	public RecoveryCasePlanResponse executeNext(String caseId) {
 		RecoveryCase recoveryCase = requireOpen(caseId);
-		if (!insufficientFundsHandler.supports(recoveryCase)) {
-			throw new ResponseStatusException(
-					HttpStatus.CONFLICT, "execute is only wired for insufficient_funds right now");
-		}
 		baselineActionPlanner.planFor(recoveryCase);
-		insufficientFundsHandler.executeNext(recoveryCase);
+		baselineActionPlanner.pick(recoveryCase).executeNext(recoveryCase);
 		return getPlan(caseId);
 	}
 

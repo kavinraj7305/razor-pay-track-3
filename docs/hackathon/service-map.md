@@ -11,7 +11,7 @@ service/
 ├── webhook/     receive + simulate Razorpay events
 ├── ingest/      turn an event into a recovery_case
 └── plan/        pick a reason handler and write/read the action
-    └── handler/ one dumb file per reason (insufficient_funds first)
+    └── handler/ one 4-step folder per reason + DefaultReasonHandler for unknown
 ```
 
 ---
@@ -55,9 +55,20 @@ Needed so a case is not detection-only. Writes `recovery_action` + `audit_event`
 |---|---|
 | `BaselineActionPlanner.java` | **Picks** the first matching reason handler and **writes** `recovery_action` + `audit_event` |
 | `PlannedDecision.java` | The action the handler chose (type, status, note) |
-| `handler/BaselineReasonHandler.java` | Interface: `supports(case)` + `decide(case)` |
-| `handler/insufficientfunds/` | Dumb path for `insufficient_funds` (4 steps) |
-| `handler/DefaultReasonHandler.java` | Everything else until we split more reason folders |
+| `handler/BaselineReasonHandler.java` | Interface: `supports(case)` + `decide(case)` + `executeNext(case)` |
+| `handler/PlaybookRunner.java` | Shared 4-step execute (reuse planned row, bump attempt) |
+| `handler/DevPlaybookOps.java` | DEV retry / SMS / pay-link / block helpers |
+| `handler/insufficientfunds/` | `insufficient_funds` — 3 retries then pay-link |
+| `handler/riskfailed/` | `payment_risk_check_failed` — block, ops SMS, wait, stop |
+| `handler/paymentcancelled/` | `payment_cancelled` — block, low-pri SMS, wait, stop |
+| `handler/cardexpired/` | `card_expired` — pay-link, SMS, nudge, stop (no retry) |
+| `handler/invalidvpa/` | `invalid_vpa` — same as expired card |
+| `handler/gatewaytechnical/` | `gateway_technical` / `bank_technical` — 3 retries then pay-link |
+| `handler/subscriptionpending/` | `subscription.pending` — 3 retries then warning SMS |
+| `handler/subscriptionhalted/` | `subscription.halted` — pay-link, SMS, nudge, stop |
+| `handler/invoiceexpired/` | `invoice.expired` — PTP chase, follow-up, escalate, stop |
+| `handler/checkoutabandoned/` | `checkout.abandoned` — pay-link, SMS, nudge, stop |
+| `handler/DefaultReasonHandler.java` | Unknown reasons (`card_declined`, …) — plan retry, no `/execute` playbook |
 | `RecoveryActionPlanService.java` | Read plan; `/{caseId}/plan` and `/{caseId}/execute` |
 | `notify/DevSmsService.java` | Free DEV SMS (logs only, no paid gateway) |
 | `retry/DevPaymentRetryService.java` | Free DEV retry (no Razorpay charge; always fails so you can walk all 4 steps) |

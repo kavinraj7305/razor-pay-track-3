@@ -1,12 +1,18 @@
 # Winning overlay (on top of the Day 1–6 build guide)
 
-**What to do this minute → [NEXT.md](./NEXT.md)** (prove Day 1, then build Day 2 baseline).
+**What to do this minute → [intelligence-layer-plan.md](./intelligence-layer-plan.md)** (Sep 1–5 timeline). Local URLs → [NEXT.md](./NEXT.md).
+
+Created: **1 Sep 2026** (overlay vs Day 1–6 guide)
+Last updated: **1 Sep 2026, 19:40 IST**
+Why updated: pitch order is playbook first, then ML for customer-level retry.
 
 Use the original Day 1–6 guide as the build order. This file is **only what to add, change, or skip** so Track 03 can actually select you.
 
 **Deadline:** before Sep 5, 2026. **Today:** Sep 1. That is **4 days**, not 6. Do not restart Day 1.
 
 **Track bar (non-negotiable):** detect → diagnose → act → **stop** → **measured ₹ recovered on a batch** → **audit/decision trace**. Identification-only loses.
+
+**What we built, in order (say this):** we first shipped **reason playbooks** (issue → reason → fixed retries / pay-link / stop). That is not enough: the same reason still retries every customer the same way. We then added **ML on existing Postgres tables** so `P(recovery)` is about **this customer** (history, LTV, amount) — retry or skip — while Java still executes. Detail: [intelligence-layer-plan.md](./intelligence-layer-plan.md#why-ml-after-the-playbook-say-this-in-the-video). Hurdles + fixes to say out loud: [hurdles-and-solutions.md](./hurdles-and-solutions.md).
 
 ---
 
