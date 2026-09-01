@@ -20,14 +20,14 @@ import numpy as np
 import pandas as pd
 
 SEED = 42
-DEFAULT_N = 400
+DEFAULT_N = 500
 MERCHANT_ID = "acc_syn_training"
 NOW = datetime(2026, 9, 1, 18, 0, tzinfo=timezone.utc)
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 
-# Share of 400; scaled with largest-remainder when --n changes.
+# Mix for the default 500; scaled with largest-remainder when --n changes.
 REASON_WEIGHTS: dict[str, int] = {
     "insufficient_funds": 70,
     "card_expired": 50,
@@ -145,10 +145,10 @@ def allocate_counts(n: int) -> dict[str, int]:
 
 
 def make_customers(rng: np.random.Generator, n_events: int) -> pd.DataFrame:
-    n = max(80, n_events // 3)
+    n = n_events
     rows = []
     for i in range(1, n + 1):
-        prior_payments = int(rng.integers(2, 28))
+        prior_payments = int(rng.integers(5, 40))
         success_rate = float(np.clip(rng.beta(5, 3), 0.15, 0.95))
         prior_success = int(round(prior_payments * success_rate))
         prior_failure = prior_payments - prior_success
@@ -178,13 +178,26 @@ def make_customers(rng: np.random.Generator, n_events: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def pick_customer(rng: np.random.Generator, customers: pd.DataFrame, reason: str) -> pd.Series:
+def pick_customer(
+    rng: np.random.Generator,
+    customers: pd.DataFrame,
+    remaining: pd.DataFrame,
+    reason: str,
+) -> tuple[pd.Series, pd.DataFrame]:
+    pool = remaining
     if reason.startswith("subscription"):
-        subs = customers[customers["subscription_age_months"] > 0]
-        pool = subs if not subs.empty else customers
+        subs = remaining[remaining["subscription_age_months"] > 0]
+        pool = subs if not subs.empty else customers[customers["subscription_age_months"] > 0]
+        if pool.empty:
+            pool = remaining if not remaining.empty else customers
+    elif not remaining.empty:
+        no_sub = remaining[remaining["subscription_age_months"] == 0]
+        pool = no_sub if not no_sub.empty else remaining
     else:
         pool = customers
-    return pool.iloc[int(rng.integers(0, len(pool)))]
+    chosen = pool.iloc[int(rng.integers(0, len(pool)))]
+    leftover = remaining[remaining["customer_id"] != chosen["customer_id"]]
+    return chosen, leftover
 
 
 def sample_amount(rng: np.random.Generator, reason: str, meta: dict, risk_80k_left: list[int]) -> float:
@@ -238,7 +251,8 @@ def build_events(
     rng: np.random.Generator, customers: pd.DataFrame, counts: dict[str, int]
 ) -> pd.DataFrame:
     risk_n = counts.get("payment_risk_check_failed", 0)
-    risk_80k_left = [min(10, risk_n)]
+    risk_80k_left = [min(12, risk_n)]
+    remaining = customers.copy()
     rows: list[dict] = []
     seq = 1
     for reason, n in counts.items():
@@ -246,7 +260,7 @@ def build_events(
         lo, hi = meta["retries"]
         methods = meta["methods"]
         for _ in range(n):
-            customer = pick_customer(rng, customers, reason)
+            customer, remaining = pick_customer(rng, customers, remaining, reason)
             amount = sample_amount(rng, reason, meta, risk_80k_left)
             retry_count = int(rng.integers(lo, hi + 1))
             paid, _p_true = label_paid(

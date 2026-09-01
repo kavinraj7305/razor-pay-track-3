@@ -13,6 +13,7 @@ import pandas as pd
 import psycopg
 
 TRAINING_MERCHANT_ID = "acc_syn_training"
+AS_OF = datetime(2026, 9, 1, 18, 0)
 
 
 def connect() -> psycopg.Connection:
@@ -118,42 +119,37 @@ def _insert_history(cur: psycopg.Cursor, customers: pd.DataFrame, used_ids: set[
         if customer["customer_id"] not in used_ids:
             continue
         aov = max(float(customer["avg_order_value_inr"]), 1.0)
+        delay_h = max(float(customer["avg_payment_delay_hours"]), 0.5)
+        last_at = AS_OF - timedelta(days=int(customer["days_since_last_activity"]))
         cust = customer["customer_id"]
         suffix = str(cust).split("_")[-1]
-        seq = 1
-        for _ in range(int(customer["prior_success_count"])):
+        n_success = int(customer["prior_success_count"])
+        n_fail = int(customer["prior_failure_count"])
+        total = n_success + n_fail
+        statuses = ["SUCCESS"] * n_success + ["FAILED"] * n_fail
+        for i, status in enumerate(statuses):
+            created = last_at - timedelta(hours=delay_h * (total - 1 - i))
             rows.append(
                 (
-                    f"pay_h_{suffix}_{seq:02d}"[:50],
+                    f"pay_h_{suffix}_{i + 1:02d}"[:50],
                     TRAINING_MERCHANT_ID,
                     cust,
                     round(aov, 2),
                     "INR",
-                    "SUCCESS",
+                    status,
                     "card",
+                    created,
+                    created,
                 )
             )
-            seq += 1
-        for _ in range(int(customer["prior_failure_count"])):
-            rows.append(
-                (
-                    f"pay_h_{suffix}_{seq:02d}"[:50],
-                    TRAINING_MERCHANT_ID,
-                    cust,
-                    round(aov, 2),
-                    "INR",
-                    "FAILED",
-                    "card",
-                )
-            )
-            seq += 1
     if rows:
         cur.executemany(
             """
             INSERT INTO payment (
-                payment_id, merchant_id, customer_id, amount, currency, status, payment_type
+                payment_id, merchant_id, customer_id, amount, currency, status, payment_type,
+                created_at, updated_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             rows,
         )

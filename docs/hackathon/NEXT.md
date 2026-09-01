@@ -16,7 +16,8 @@ Deadline: **before 5 Sep 2026**.
 - Day 1 webhook → `recovery_case`
 - 8 simulate scenarios
 - **Baseline actions** (no Kafka / Redis yet): each new case gets a `recovery_action` + `audit_event`
-- **Synthetic batch** (Step 3.4): **400 labelled rows in Postgres** merchant `acc_syn_training`. Label = `recovery_outcome.result`. CSV under `ml-service/data/` is an export. Regenerate + seed: `uv run python scripts/generate_synthetic.py` from `ml-service/`. Beekeeper: `WHERE merchant_id = 'acc_syn_training'`.
+- **Synthetic batch** (Step 3.4): 500 cases / 500 customers on `acc_syn_training`. `uv run python scripts/generate_synthetic.py`
+- **Customer features** (Step 3.1): from existing Postgres tables (no new table). `uv run python scripts/refresh_features.py`. Export: `ml-service/data/customer_features.csv` + `case_features.csv`.
 
 Restart `bootRun`, then [http://localhost:8080/api/webhooks/simulate/all](http://localhost:8080/api/webhooks/simulate/all)
 
@@ -45,8 +46,8 @@ Service folders + what each file is for: **[service-map.md](./service-map.md)**
 
 ## Next (2 Sep)
 
-1. **Customer features** (Step 3.1) from the synthetic CSV
-2. FastAPI `POST /predict` → propose-only agent
+1. FastAPI + XGBoost `POST /predict` → `P(recovery)`
+2. Propose-only agent
 
 Kafka `recovery.events` / `action.events` and Redis cooldown/lock wait until those curl. Detail: [intelligence-layer-plan.md](./intelligence-layer-plan.md).
 

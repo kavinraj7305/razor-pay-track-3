@@ -1,0 +1,13 @@
+{
+  "merchant_id": "acc_syn_training",
+  "n_customers": 500,
+  "n_cases": 500,
+  "mean_payment_success_rate": 0.6249,
+  "mean_lifetime_value": 33594.92,
+  "customers_with_subscription": 56,
+  "source": "existing tables payment / recovery_case / recovery_outcome / subscription",
+  "files": {
+    "customer_features": "data/customer_features.csv",
+    "case_features": "data/case_features.csv"
+  }
+}

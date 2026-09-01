@@ -114,10 +114,10 @@ Pitch sentence: **Agent proposes. Java playbooks + policy move money. Agent has 
 | 2.1 Kafka `recovery.events` / `action.events` | **Deferred** (ingest Kafka already exists) |
 | 2.2 Redis 4 keys | **1/4 done** (webhook SETNX). Cooldown/retry/lock deferred |
 | 2.3 Baseline engine | **Done** (reason folders, 4 steps each, `/execute`) |
-| 3.1 Features | **Next** (from `data/synthetic_events.csv`) |
+| 3.1 Features | **Done** (from Postgres `payment` / `recovery_outcome`; CSV export only) |
 | 3.2 XGBoost `/predict` | **2 Sep** |
 | 3.3 LLM agent | **2 Sep night** |
-| 3.4 Synthetic 300–500 | **Done** (400 rows in Postgres `acc_syn_training`; `recovery_outcome` = paid_eventually) |
+| 3.4 Synthetic 300–500 | **Done** (500 cases + 500 customers in Postgres `acc_syn_training`) |
 
 ---
 
