@@ -129,9 +129,125 @@ button {
 .primary-btn:disabled,
 .ghost-btn:disabled,
 .issue-btn:disabled,
-.start-btn:disabled {
+.start-btn:disabled,
+.ask-btn:disabled {
   opacity: 0.55;
   cursor: wait;
+}
+
+.action-row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 0.5rem;
+}
+
+.ask-btn {
+  text-align: center;
+  font-weight: 600;
+  padding: 0.9rem 1rem;
+}
+
+.ops-strip {
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 0.9rem 1rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.ops-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.ops-head strong {
+  display: block;
+  margin-top: 0.15rem;
+}
+
+.ops-alert {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.ops-alert p {
+  margin: 0.2rem 0 0;
+  font-size: 0.88rem;
+}
+
+.ops-alert.high {
+  border-color: #e3b4b4;
+  background: #fdf4f4;
+}
+
+.ops-alert.medium {
+  border-color: #e3d3a4;
+  background: #fff8e8;
+}
+
+.safety-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: flex-end;
+}
+
+.chip.warn {
+  border-color: var(--stop);
+  color: var(--stop);
+  background: #f8e6e6;
+}
+
+.agent-card {
+  display: grid;
+  gap: 0.55rem;
+  border: 2px solid var(--navy);
+  background: #fff;
+  padding: 0.9rem 1rem;
+}
+
+.agent-card p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.agent-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem 1rem;
+  margin: 0.2rem 0 0;
+}
+
+.agent-compare dt {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.agent-compare dd {
+  margin: 0.1rem 0 0;
+  font-weight: 600;
+}
+
+.badge.deviate {
+  border-color: var(--gold);
+  color: #8a5a00;
+  background: #fff8e8;
+}
+
+.badge.agree {
+  border-color: #9fcbb3;
+  color: var(--go);
+  background: #eef7f1;
 }
 
 .desk-split {

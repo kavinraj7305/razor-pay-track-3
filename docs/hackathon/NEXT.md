@@ -1,7 +1,7 @@
 Created: **1 Sep 2026** (local demo checklist)
 Reason: one page of URLs so we can prove Day 1–2 baseline in the browser.
-Last updated: **2 Sep 2026, 14:40 IST**
-Why updated: Recovery desk UI lists cases with playbook + P(recovery). Agent (Ollama) waits.
+Last updated: **2 Sep 2026, 18:50 IST**
+Why updated: next build is senior-aligned agent-win-plan (3-node + patterns).
 
 # NEXT — do this now
 
@@ -51,7 +51,7 @@ Desk UI (before agent): [http://localhost:3000](http://localhost:3000) — creat
 
 ## Next
 
-1. After the desk is usable: Ollama propose-only agent (not Claude). Then copy agent JSON onto `audit_event`. Java still `/execute`.
+1. Build agent per **[agent-win-plan.md](./agent-win-plan.md)** — **3-node** case `/propose` + recurring-pattern `/ops/briefing` (Ollama `qwen2.5-coder:7b`). Prove no execute tool + live fallback. Then desk cards + PolicyEngine/`audit_event`. Java still `/execute`.
 
 Kafka `recovery.events` / `action.events` and Redis cooldown/lock wait until those curl. Detail: [intelligence-layer-plan.md](./intelligence-layer-plan.md).
 

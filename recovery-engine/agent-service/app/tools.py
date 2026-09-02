@@ -1,4 +1,4 @@
-"""Read-only tools. There is no charge, retry, or payment-link tool."""
+"""Read-only helpers. There is no charge, retry, or payment-link tool."""
 
 from __future__ import annotations
 
@@ -11,10 +11,9 @@ def get_policies() -> dict:
     return {
         "neverRetryReasons": ["payment_risk_check_failed", "payment_cancelled"],
         "humanApprovalAmount": settings.human_approval_amount,
-        "minLabelledOutcomesProd": 10000,
-        "minLabelledOutcomesDemo": 400,
         "lowProbabilitySkipRetry": 0.25,
         "agentCanExecute": False,
+        "actionsAvailable": ["propose"],
     }
 
 
@@ -24,23 +23,23 @@ def calculate_expected_value(probability: float, amount_inr: float) -> float:
 
 def predict_recovery(payload: dict) -> dict | None:
     body = {
-        "reason": payload["reason"],
+        "reason": payload.get("reason", "unknown"),
         "source": payload.get("source", "PAYMENT"),
         "priority": payload.get("priority", "MEDIUM"),
         "paymentMethod": payload.get("paymentMethod", "card"),
-        "amountInr": payload["amountInr"],
-        "retryCount": payload.get("retryCount", 0),
-        "hoursSinceFail": payload.get("hoursSinceFail", 0),
-        "historicalRecoveryRate": payload.get("historicalRecoveryRate", 0),
-        "retryHistoryCount": payload.get("retryHistoryCount", 0),
-        "paymentSuccessRate": payload["paymentSuccessRate"],
-        "paymentFailureRate": payload["paymentFailureRate"],
-        "avgPaymentDelay": payload.get("avgPaymentDelay", 0),
-        "subscriptionAgeMonths": payload.get("subscriptionAgeMonths", 0),
-        "lifetimeValue": payload["lifetimeValue"],
-        "avgOrderValue": payload["avgOrderValue"],
-        "daysSinceLastActivity": payload.get("daysSinceLastActivity", 0),
-        "historyPaymentCount": payload.get("historyPaymentCount", 0),
+        "amountInr": float(payload.get("amountInr") or 0),
+        "retryCount": int(payload.get("retryCount") or 0),
+        "hoursSinceFail": int(payload.get("hoursSinceFail") or 0),
+        "historicalRecoveryRate": float(payload.get("historicalRecoveryRate") or 0),
+        "retryHistoryCount": int(payload.get("retryHistoryCount") or 0),
+        "paymentSuccessRate": float(payload.get("paymentSuccessRate") or 0),
+        "paymentFailureRate": float(payload.get("paymentFailureRate") or 0),
+        "avgPaymentDelay": float(payload.get("avgPaymentDelay") or 0),
+        "subscriptionAgeMonths": int(payload.get("subscriptionAgeMonths") or 0),
+        "lifetimeValue": float(payload.get("lifetimeValue") or 0),
+        "avgOrderValue": float(payload.get("avgOrderValue") or 0),
+        "daysSinceLastActivity": int(payload.get("daysSinceLastActivity") or 0),
+        "historyPaymentCount": int(payload.get("historyPaymentCount") or 0),
     }
     try:
         response = httpx.post(settings.ml_predict_url, json=body, timeout=3.0)

@@ -1,4 +1,4 @@
-import type { CaseDetail, CaseSummary, Scenario, SimulateResult } from "./types";
+import type { CaseDetail, CaseProposal, CaseSummary, OpsBriefing, Scenario, SimulateResult } from "./types";
 
 async function readJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { cache: "no-store", ...init });
@@ -31,6 +31,22 @@ export function createAllIssues() {
 
 export function executeNext(caseId: string) {
   return readJson<CaseDetail>(`/api/recovery-cases/${caseId}/execute`, { method: "POST" });
+}
+
+export function proposeCase(caseId: string) {
+  return readJson<CaseProposal>("/agent-api/propose", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ caseId }),
+  });
+}
+
+export function opsBriefing(windowHours = 6) {
+  return readJson<OpsBriefing>("/agent-api/ops/briefing", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ windowHours }),
+  });
 }
 
 export function inr(amount: number | null | undefined) {

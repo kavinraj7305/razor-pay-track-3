@@ -1,8 +1,8 @@
 Created: **1 Sep 2026, 15:43 IST**
 Reason: lock the remaining calendar after we chose to **skip leftover Day 2 Kafka/Redis topics** and go to the **intelligence layer** (synthetic data → ML → agent). Baseline playbooks are already live; extra async plumbing can wait.
 
-Last updated: **2 Sep 2026, 14:40 IST**
-Why updated: desk UI before the agent; agent will use **Ollama**, not Claude.
+Last updated: **2 Sep 2026, 17:30 IST**
+Why updated: LangGraph case + ops agent plan locked in langgraph-agent-plan.md (Ollama).
 Deadline: **before 5 Sep 2026**
 
 ---
@@ -116,7 +116,7 @@ Pitch sentence: **Agent proposes. Java playbooks + policy move money. Agent has 
 | 2.3 Baseline engine | **Done** (reason folders, 4 steps each, `/execute`) |
 | 3.1 Features | **Done** (from Postgres `payment` / `recovery_outcome`; CSV export only) |
 | 3.2 XGBoost `/predict` | **Done** (test ROC-AUC in `data/predict_metrics.json`; curl without Java) |
-| 3.3 LLM agent | **Paused** — desk UI first. Thin `/propose` exists; next pass is **Ollama** (not Claude) + caseId tools |
+| 3.3 LLM agent | **Plan locked** — see [langgraph-agent-plan.md](./langgraph-agent-plan.md). Desk done; next code = Ollama **case + ops** graphs (`qwen2.5-coder:7b`) |
 | 3.4 Synthetic 300–500 | **Done** (500 cases + 500 customers in Postgres `acc_syn_training`) |
 
 ---

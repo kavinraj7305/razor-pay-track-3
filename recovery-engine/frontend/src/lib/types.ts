@@ -65,6 +65,43 @@ export type CaseDetail = CaseSummary & {
   score: ScorePeek | null;
 };
 
+export type CaseProposal = {
+  caseId: string | null;
+  diagnosis: string;
+  reasoning: string;
+  recommendedAction: string;
+  defaultPlaybookAction: string;
+  deviatesFromPlaybook: boolean;
+  confidence: number;
+  mlScore: number | null;
+  escalate: boolean;
+  actionsAvailable: string[];
+  executes: boolean;
+  model: string;
+  fallbackUsed: boolean;
+};
+
+export type OpsPattern = {
+  severity: string;
+  pattern: string;
+  where: string;
+  count: number;
+  why: string;
+  proposedSolution: string;
+  relatedCaseIds: string[];
+};
+
+export type OpsBriefing = {
+  windowHours: number;
+  summary: string;
+  patterns: OpsPattern[];
+  metrics: Record<string, unknown>;
+  actionsAvailable: string[];
+  executes: boolean;
+  fallbackUsed: boolean;
+  model: string;
+};
+
 export type SimulateResult = {
   stored: boolean;
   scenario: string;

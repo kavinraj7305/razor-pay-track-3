@@ -9,7 +9,9 @@ import {
   inr,
   listCases,
   listScenarios,
+  opsBriefing,
   pct,
+  proposeCase,
 } from "@/lib/api";
 import {
   latestActionForStep,
@@ -18,7 +20,7 @@ import {
   type LogLine,
 } from "@/lib/narrative";
 import { completedSteps, progressLabel, remainingSteps, sleep } from "@/lib/progress";
-import type { CaseDetail, CaseSummary, Scenario } from "@/lib/types";
+import type { CaseDetail, CaseProposal, CaseSummary, OpsBriefing, Scenario } from "@/lib/types";
 
 type Phase = "idle" | "detect" | "score" | "act" | "done";
 
@@ -55,6 +57,10 @@ function phaseState(current: Phase, name: Phase): "done" | "active" | "" {
   return "";
 }
 
+function actionWords(value: string) {
+  return value.split("_").join(" ");
+}
+
 function stepState(detail: CaseDetail, step: number, runningStep: number | null) {
   if (runningStep === step) {
     return "running";
@@ -84,7 +90,17 @@ export default function RecoveryDesk() {
     null,
   );
   const [log, setLog] = useState<LogLine[]>([]);
+  const [proposal, setProposal] = useState<CaseProposal | null>(null);
+  const [briefing, setBriefing] = useState<OpsBriefing | null>(null);
   const runToken = useRef(0);
+
+  const loadBriefing = useCallback(async () => {
+    try {
+      setBriefing(await opsBriefing(6));
+    } catch {
+      setBriefing(null);
+    }
+  }, []);
 
   const pushLog = useCallback((line: Omit<LogLine, "id">) => {
     setLog((prev) => [{ ...line, id: `${Date.now()}-${prev.length}` }, ...prev].slice(0, 24));
@@ -111,6 +127,7 @@ export default function RecoveryDesk() {
           setScenarios(catalog);
         }
         await refresh();
+        await loadBriefing();
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Backend is not reachable on :8080");
@@ -120,7 +137,7 @@ export default function RecoveryDesk() {
     return () => {
       cancelled = true;
     };
-  }, [refresh]);
+  }, [refresh, loadBriefing]);
 
   async function run(label: string, work: () => Promise<void>) {
     setBusy(label);
@@ -345,16 +362,34 @@ export default function RecoveryDesk() {
     busy === null &&
     detail.status !== "RECOVERED" &&
     (detail.playbook?.length ?? 0) > 0;
+  const canAsk = detail != null && busy === null;
+
+  async function askAgent() {
+    if (!detail) {
+      return;
+    }
+    await run("agent", async () => {
+      const next = await proposeCase(detail.caseId);
+      setProposal(next);
+      setTicker(
+        next.deviatesFromPlaybook
+          ? `Agent deviates: ${actionWords(next.recommendedAction)} (playbook: ${actionWords(next.defaultPlaybookAction)})`
+          : `Agent agrees with playbook: ${actionWords(next.recommendedAction)}`,
+      );
+      setWhatNow(next.diagnosis.replaceAll("_", " "));
+      setWhyNow(next.reasoning);
+    });
+  }
 
   return (
     <div className="desk">
       <header className="desk-bar">
         <div>
-          <p className="pill">Live demo desk · real playbook timeline (compressed)</p>
+          <p className="pill">Live demo desk · agent proposes · Java executes</p>
           <h1>Recovery issues</h1>
           <p>
-            Start simulates real-world waits (48h payday, longer gaps, nudges), then runs the Java step and
-            shows whether it recovered — and why.
+            Ask the agent for a diagnosis. Start still simulates real-world waits, then Java runs the step.
+            The agent has no charge tool.
           </p>
         </div>
         <button
@@ -364,6 +399,7 @@ export default function RecoveryDesk() {
             run("all", async () => {
               await createAllIssues();
               await refresh(selectedId);
+              await loadBriefing();
             })
           }
         >
@@ -373,6 +409,37 @@ export default function RecoveryDesk() {
 
       <div className="wrap">
         {error ? <div className="err">{error}</div> : null}
+
+        <section className="ops-strip">
+          <div className="ops-head">
+            <div>
+              <p className="pill">Ops patterns · last 6h</p>
+              <strong>{briefing?.summary ?? "Agent service not reachable on :8002 — SQL briefing skipped."}</strong>
+            </div>
+            <div className="safety-chips">
+              <span className="chip">actions_available: propose only</span>
+              {briefing?.fallbackUsed ? <span className="chip warn">fallback_used</span> : null}
+              {briefing ? <span className="chip">{briefing.model}</span> : null}
+            </div>
+          </div>
+          {briefing && briefing.patterns.length === 0 ? (
+            <p className="muted">No recurring spikes in this window.</p>
+          ) : null}
+          {briefing?.patterns.map((item) => (
+            <article key={`${item.pattern}-${item.where}`} className={`ops-alert ${item.severity.toLowerCase()}`}>
+              <span className="badge">{item.severity}</span>
+              <div>
+                <strong>{item.pattern.replaceAll("_", " ")}</strong>
+                <p>
+                  {item.why} · {item.proposedSolution}
+                </p>
+                <span className="muted">
+                  {item.where} · {item.count} cases
+                </span>
+              </div>
+            </article>
+          ))}
+        </section>
 
         <section>
           <p className="muted" style={{ marginBottom: "0.5rem" }}>
@@ -393,11 +460,13 @@ export default function RecoveryDesk() {
                     setLog([]);
                     setOutcomeNow(null);
                     setWaitClock(null);
-                    setTicker("Case created. Press Start recovery process.");
+                    setTicker("Case created. Ask the agent, or start the recovery process.");
                     setWhatNow("Case is ready.");
-                    setWhyNow("Start to walk the compressed real-world timeline.");
+                    setWhyNow("Agent proposes only. Start still runs Java execute.");
+                    setProposal(null);
                     const created = await createIssue(scenario.slug);
                     await refresh(created.caseId);
+                    await loadBriefing();
                   })
                 }
               >
@@ -430,9 +499,10 @@ export default function RecoveryDesk() {
                         setLog([]);
                         setOutcomeNow(null);
                         setWaitClock(null);
-                        setTicker("Case selected. Press Start recovery process.");
+                        setTicker("Case selected. Ask the agent, or start the recovery process.");
                         setWhatNow("Ready to simulate.");
-                        setWhyNow("Timeline waits are compressed for the video.");
+                        setWhyNow("Agent proposes. Java executes.");
+                        setProposal(null);
                         setSelectedId(row.caseId);
                         setDetail(await getCase(row.caseId));
                       })
@@ -517,17 +587,26 @@ export default function RecoveryDesk() {
                   </div>
                 ) : null}
 
-                <button
-                  className={busy === "live" ? "start-btn running" : "start-btn"}
-                  disabled={!canStart}
-                  onClick={() => void startLiveProcess()}
-                >
-                  {busy === "live"
-                    ? "Simulating recovery…"
-                    : detail.status === "RECOVERED"
-                      ? "Process finished"
-                      : "Start recovery process"}
-                </button>
+                <div className="action-row">
+                  <button
+                    className="ghost-btn ask-btn"
+                    disabled={!canAsk}
+                    onClick={() => void askAgent()}
+                  >
+                    {busy === "agent" ? "Asking agent…" : "Ask agent"}
+                  </button>
+                  <button
+                    className={busy === "live" ? "start-btn running" : "start-btn"}
+                    disabled={!canStart}
+                    onClick={() => void startLiveProcess()}
+                  >
+                    {busy === "live"
+                      ? "Simulating recovery…"
+                      : detail.status === "RECOVERED"
+                        ? "Process finished"
+                        : "Start recovery process"}
+                  </button>
+                </div>
 
                 <div className="explain">
                   <div>
@@ -563,6 +642,51 @@ export default function RecoveryDesk() {
                     </p>
                   </div>
                 </div>
+
+                {proposal ? (
+                  <div className="agent-card">
+                    <div className="panel-head" style={{ padding: 0, border: 0 }}>
+                      <h3 className="display" style={{ margin: 0, fontSize: "1.05rem" }}>
+                        Agent proposal
+                      </h3>
+                      <span className={proposal.deviatesFromPlaybook ? "badge deviate" : "badge agree"}>
+                        {proposal.deviatesFromPlaybook ? "Deviates" : "Agrees with playbook"}
+                      </span>
+                    </div>
+                    <p className="pill" style={{ color: "var(--navy)" }}>
+                      {proposal.diagnosis.replaceAll("_", " ")}
+                    </p>
+                    <p>{proposal.reasoning}</p>
+                    <dl className="agent-compare">
+                      <div>
+                        <dt>Recommended</dt>
+                        <dd>{actionWords(proposal.recommendedAction)}</dd>
+                      </div>
+                      <div>
+                        <dt>Playbook default</dt>
+                        <dd>{actionWords(proposal.defaultPlaybookAction)}</dd>
+                      </div>
+                      <div>
+                        <dt>Confidence · P(recovery)</dt>
+                        <dd>
+                          {pct(proposal.confidence)} · {pct(proposal.mlScore)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Escalate</dt>
+                        <dd>{proposal.escalate ? "Yes — human" : "No"}</dd>
+                      </div>
+                    </dl>
+                    <div className="safety-chips">
+                      <span className="chip">actions_available: {(proposal.actionsAvailable ?? ["propose"]).join(", ")}</span>
+                      <span className="chip">executes: {String(proposal.executes)}</span>
+                      {proposal.fallbackUsed ? <span className="chip warn">fallback_used</span> : null}
+                      <span className="chip">{proposal.model}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="muted">Ask agent for a diagnosis. It cannot charge — Java / Start still executes.</p>
+                )}
 
                 <div className="playbook">
                   <h3 className="display" style={{ margin: "0 0 0.6rem", fontSize: "1.05rem" }}>
