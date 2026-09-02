@@ -11,6 +11,7 @@ import com.razorpayhackthon.revenue_recovery.enums.RecoveryCaseStatus;
 import com.razorpayhackthon.revenue_recovery.repository.AuditEventRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryActionRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryCaseRepository;
+import com.razorpayhackthon.revenue_recovery.service.ml.MlDataGate;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -26,16 +27,19 @@ public class RecoveryActionPlanService {
 	private final RecoveryActionRepository recoveryActionRepository;
 	private final AuditEventRepository auditEventRepository;
 	private final BaselineActionPlanner baselineActionPlanner;
+	private final MlDataGate mlDataGate;
 
 	public RecoveryActionPlanService(
 			RecoveryCaseRepository recoveryCaseRepository,
 			RecoveryActionRepository recoveryActionRepository,
 			AuditEventRepository auditEventRepository,
-			BaselineActionPlanner baselineActionPlanner) {
+			BaselineActionPlanner baselineActionPlanner,
+			MlDataGate mlDataGate) {
 		this.recoveryCaseRepository = recoveryCaseRepository;
 		this.recoveryActionRepository = recoveryActionRepository;
 		this.auditEventRepository = auditEventRepository;
 		this.baselineActionPlanner = baselineActionPlanner;
+		this.mlDataGate = mlDataGate;
 	}
 
 	@Transactional(readOnly = true)
@@ -58,7 +62,10 @@ public class RecoveryActionPlanService {
 	public RecoveryCasePlanResponse executeNext(String caseId) {
 		RecoveryCase recoveryCase = requireOpen(caseId);
 		baselineActionPlanner.planFor(recoveryCase);
-		baselineActionPlanner.pick(recoveryCase).executeNext(recoveryCase);
+		MlDataGate.Decision gate = mlDataGate.beforeExecute(recoveryCase);
+		if (!gate.skipRetry()) {
+			baselineActionPlanner.pick(recoveryCase).executeNext(recoveryCase);
+		}
 		return getPlan(caseId);
 	}
 

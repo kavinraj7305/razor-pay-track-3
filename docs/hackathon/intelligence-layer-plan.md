@@ -115,8 +115,8 @@ Pitch sentence: **Agent proposes. Java playbooks + policy move money. Agent has 
 | 2.2 Redis 4 keys | **1/4 done** (webhook SETNX). Cooldown/retry/lock deferred |
 | 2.3 Baseline engine | **Done** (reason folders, 4 steps each, `/execute`) |
 | 3.1 Features | **Done** (from Postgres `payment` / `recovery_outcome`; CSV export only) |
-| 3.2 XGBoost `/predict` | **2 Sep** |
-| 3.3 LLM agent | **2 Sep night** |
+| 3.2 XGBoost `/predict` | **Done** (test ROC-AUC in `data/predict_metrics.json`; curl without Java) |
+| 3.3 LLM agent | **Done** (thin LangGraph: predict → policy → propose JSON; no money tools; Claude optional later) |
 | 3.4 Synthetic 300–500 | **Done** (500 cases + 500 customers in Postgres `acc_syn_training`) |
 
 ---

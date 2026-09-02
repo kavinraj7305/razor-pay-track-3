@@ -27,7 +27,7 @@ Edits add `Last updated:` (same format). Plan changes add `Why updated:`.
 
 | File | What it is |
 |---|---|
-| [hurdles-and-solutions.md](./hurdles-and-solutions.md) | Failure recovery: playbook retried every customer the same way; we added `P(recovery)` |
+| [hurdles-and-solutions.md](./hurdles-and-solutions.md) | Failure recovery: playbook-blind retries; then small-data gate (playbook until labels cross the floor) |
 | [intelligence-layer-plan.md](./intelligence-layer-plan.md) | Sep 1–5 calendar; **why we added ML after playbooks**; synthetic → `/predict` → agent |
 | [NEXT.md](./NEXT.md) | Local URLs + what is already running |
 | [reason-to-action.md](./reason-to-action.md) | Each failure reason → first action + 4-step playbook |

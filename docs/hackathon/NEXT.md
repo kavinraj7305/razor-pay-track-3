@@ -18,6 +18,9 @@ Deadline: **before 5 Sep 2026**.
 - **Baseline actions** (no Kafka / Redis yet): each new case gets a `recovery_action` + `audit_event`
 - **Synthetic batch** (Step 3.4): 500 cases / 500 customers on `acc_syn_training`. `uv run python scripts/generate_synthetic.py`
 - **Customer features** (Step 3.1): from existing Postgres tables (no new table). `uv run python scripts/refresh_features.py`. Export: `ml-service/data/customer_features.csv` + `case_features.csv`.
+- **`POST /predict`** (Step 3.2): XGBoost `P(recovery)`. Train: `uv run python scripts/train_model.py`. Serve: `uv run uvicorn app.main:app --port 8001`. Metrics: `data/predict_metrics.json`.
+- **Data-volume gate:** labelled outcomes **&lt; 400** → playbook only; **≥ 400** → playbook + `/predict`. Prod: `10000`.
+- **Propose-only agent** (Step 3.3): `POST http://localhost:8002/propose`. Calls `/predict`. **executes: false**. No charge tool. `uv run uvicorn app.main:app --port 8002` from `agent-service/`. ML should be on 8001.
 
 Restart `bootRun`, then [http://localhost:8080/api/webhooks/simulate/all](http://localhost:8080/api/webhooks/simulate/all)
 
@@ -44,10 +47,9 @@ Service folders + what each file is for: **[service-map.md](./service-map.md)**
 
 ---
 
-## Next (2 Sep)
+## Next
 
-1. FastAPI + XGBoost `POST /predict` → `P(recovery)`
-2. Propose-only agent
+1. Wire agent JSON onto Java `audit_event` (decision trace). Policy ALLOW/BLOCK. Java still `/execute`.
 
 Kafka `recovery.events` / `action.events` and Redis cooldown/lock wait until those curl. Detail: [intelligence-layer-plan.md](./intelligence-layer-plan.md).
 
