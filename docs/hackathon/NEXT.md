@@ -47,7 +47,7 @@ Service folders + what each file is for: **[service-map.md](./service-map.md)**
 
 ---
 
-Desk UI (before agent): [http://localhost:3000](http://localhost:3000) — create issues, list playbook steps, read P(recovery). `cd recovery-engine/frontend && npm run dev`. Java **8080** + ML **8001**. Agent is **not** on this screen. Next LLM is **Ollama**, not Claude.
+Desk UI (before agent): [http://localhost:3000](http://localhost:3000) — create an issue → **Start recovery process** → live Detect → Score → Act → Done. `cd recovery-engine/frontend && npm run dev`. Java **8080** + ML **8001**. Pitch tip: demo `insufficient_funds` or `risk-failed`. Agent later (**Ollama**).
 
 ## Next
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createAllIssues,
   createIssue,
@@ -11,7 +11,16 @@ import {
   listScenarios,
   pct,
 } from "@/lib/api";
+import {
+  latestActionForStep,
+  outcomeFor,
+  storyFor,
+  type LogLine,
+} from "@/lib/narrative";
+import { completedSteps, progressLabel, remainingSteps, sleep } from "@/lib/progress";
 import type { CaseDetail, CaseSummary, Scenario } from "@/lib/types";
+
+type Phase = "idle" | "detect" | "score" | "act" | "done";
 
 function scoreClass(value: number | null) {
   if (value == null) {
@@ -30,6 +39,32 @@ function scoreLabel(row: Pick<CaseSummary, "recoveryProbability" | "scoreStatus"
   return pct(row.recoveryProbability);
 }
 
+function phaseState(current: Phase, name: Phase): "done" | "active" | "" {
+  const order: Phase[] = ["detect", "score", "act", "done"];
+  const here = order.indexOf(name);
+  const now = order.indexOf(current === "idle" ? "detect" : current);
+  if (current === "idle") {
+    return "";
+  }
+  if (here < now) {
+    return "done";
+  }
+  if (here === now) {
+    return "active";
+  }
+  return "";
+}
+
+function stepState(detail: CaseDetail, step: number, runningStep: number | null) {
+  if (runningStep === step) {
+    return "running";
+  }
+  if (completedSteps(detail).has(step)) {
+    return "done";
+  }
+  return "pending";
+}
+
 export default function RecoveryDesk() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [cases, setCases] = useState<CaseSummary[]>([]);
@@ -37,6 +72,23 @@ export default function RecoveryDesk() {
   const [detail, setDetail] = useState<CaseDetail | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [ticker, setTicker] = useState("Select a case, then start the live recovery process.");
+  const [runningStep, setRunningStep] = useState<number | null>(null);
+  const [scorePop, setScorePop] = useState(false);
+  const [waitPct, setWaitPct] = useState(0);
+  const [waitClock, setWaitClock] = useState<string | null>(null);
+  const [whatNow, setWhatNow] = useState("Nothing running yet.");
+  const [whyNow, setWhyNow] = useState("Press Start to simulate the real playbook timeline (compressed).");
+  const [outcomeNow, setOutcomeNow] = useState<{ label: string; tone: string; detail: string } | null>(
+    null,
+  );
+  const [log, setLog] = useState<LogLine[]>([]);
+  const runToken = useRef(0);
+
+  const pushLog = useCallback((line: Omit<LogLine, "id">) => {
+    setLog((prev) => [{ ...line, id: `${Date.now()}-${prev.length}` }, ...prev].slice(0, 24));
+  }, []);
 
   const refresh = useCallback(async (keepId?: string | null) => {
     const rows = await listCases();
@@ -82,15 +134,227 @@ export default function RecoveryDesk() {
     }
   }
 
+  async function animateWait(ms: number, token: number) {
+    const started = Date.now();
+    setWaitPct(0);
+    while (Date.now() - started < ms) {
+      if (runToken.current !== token) {
+        return false;
+      }
+      setWaitPct(Math.min(100, Math.round(((Date.now() - started) / ms) * 100)));
+      await sleep(80);
+    }
+    setWaitPct(100);
+    return true;
+  }
+
+  async function startLiveProcess() {
+    if (!detail) {
+      return;
+    }
+    const token = ++runToken.current;
+    setBusy("live");
+    setError(null);
+    setScorePop(false);
+    setOutcomeNow(null);
+    setLog([]);
+    setWaitPct(0);
+    setWaitClock(null);
+
+    try {
+      setPhase("detect");
+      setTicker("Failure detected — opening recovery case.");
+      setWhatNow("Webhook / simulate event created a RecoveryCase.");
+      setWhyNow("Money is at risk. We diagnose by failure reason before any charge.");
+      pushLog({
+        clock: "T+0",
+        title: "Detected",
+        body: `${detail.reason} · ${inr(detail.amountAtRisk)} at risk`,
+        tone: "info",
+      });
+      await sleep(1000);
+      if (runToken.current !== token) {
+        return;
+      }
+
+      setPhase("score");
+      setScorePop(true);
+      const probability = detail.score?.recoveryProbability ?? detail.recoveryProbability;
+      setTicker(
+        probability == null
+          ? "Scoring skipped — ML down. Playbook still runs."
+          : `Scoring this customer — P(recovery) = ${pct(probability)}`,
+      );
+      setWhatNow("ML reads payment history, LTV, delays, and this failure.");
+      setWhyNow(
+        probability == null
+          ? "Without a score we still follow the reason playbook safely."
+          : "Same NSF reason can get different chase intensity for good vs bad payers.",
+      );
+      pushLog({
+        clock: "T+0",
+        title: "Scored",
+        body:
+          probability == null
+            ? "ML unavailable — playbook only"
+            : `P(recovery)=${pct(probability)} (${detail.score?.status ?? "SCORED"})`,
+        tone: "info",
+      });
+      await sleep(1400);
+      if (runToken.current !== token) {
+        return;
+      }
+
+      setPhase("act");
+      let current = await getCase(detail.caseId);
+      setDetail(current);
+
+      if (current.status === "RECOVERED") {
+        setPhase("done");
+        setTicker("Already recovered — process stops.");
+        setWhatNow("Payment captured / case closed.");
+        setWhyNow("No more retries.");
+        return;
+      }
+
+      // Snapshot remaining steps once — each step runs at most one wait + one execute.
+      const queue = remainingSteps(current);
+      const ran = new Set<number>();
+
+      for (const next of queue) {
+        if (runToken.current !== token) {
+          return;
+        }
+        if (current.status === "RECOVERED") {
+          break;
+        }
+        if (ran.has(next.step) || completedSteps(current).has(next.step)) {
+          continue;
+        }
+        ran.add(next.step);
+
+        const probabilityNow = current.score?.recoveryProbability ?? current.recoveryProbability;
+        const story = storyFor(current.reason, next, probabilityNow);
+        setRunningStep(next.step);
+        setWaitClock(story.clockLabel);
+        setTicker(story.waitLabel);
+        setWhatNow(story.what);
+        setWhyNow(story.why);
+        setOutcomeNow(null);
+        pushLog({
+          clock: story.clockLabel,
+          title: `Wait once · step ${next.step}`,
+          body: `${story.waitLabel} — then one execute, not a loop`,
+          tone: "wait",
+        });
+
+        const ok = await animateWait(story.waitMs, token);
+        if (!ok) {
+          return;
+        }
+
+        setTicker(`One execute · step ${next.step}: ${next.actionType.split("_").join(" ")}`);
+        setWhatNow(`Calling Java /execute once for step ${next.step}.`);
+        setWhyNow("Wait is simulated. Java runs this step a single time, then we move to the next step.");
+
+        const doneBefore = completedSteps(current).size;
+        try {
+          current = await executeNext(current.caseId);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Execute failed";
+          setError(message);
+          setTicker("Stopped — execute failed.");
+          setWhatNow(message);
+          setWhyNow(
+            message.includes("no playbook")
+              ? "This reason has no 4-step execute path yet. Use insufficient_funds or risk-failed for the pitch."
+              : "Backend rejected the step.",
+          );
+          setRunningStep(null);
+          setWaitClock(null);
+          return;
+        }
+
+        setDetail(current);
+        const finished = latestActionForStep(current, next.step);
+        const progressed = completedSteps(current).size > doneBefore || Boolean(finished);
+        const outcome = progressed
+          ? outcomeFor(finished, current.reason)
+          : {
+              label: "Skipped — no repeat",
+              tone: "stop" as const,
+              detail:
+                "Java did not advance this step (policy/ML skip). Stopping so T+96h does not run again.",
+            };
+        setOutcomeNow(outcome);
+        setRunningStep(null);
+        setTicker(`Step ${next.step} finished once · ${outcome.label}`);
+        setWhatNow(outcome.detail);
+        setWhyNow(story.why);
+        pushLog({
+          clock: story.clockLabel,
+          title: `${outcome.label} · step ${next.step}`,
+          body: outcome.detail,
+          tone: outcome.tone === "fail" ? "fail" : outcome.tone === "stop" ? "stop" : "ok",
+        });
+
+        if (!progressed) {
+          break;
+        }
+
+        await sleep(900);
+      }
+
+      if (runToken.current !== token) {
+        return;
+      }
+      setPhase("done");
+      setWaitClock(null);
+      setWaitPct(100);
+      setTicker(
+        current.status === "RECOVERED"
+          ? "Done — revenue recovered."
+          : "Done — playbook finished for this run (may still be unpaid).",
+      );
+      setWhatNow(
+        current.status === "RECOVERED"
+          ? "Case closed as recovered."
+          : "All planned steps ran. DEV retries often fail on purpose so you can see the full chain.",
+      );
+      setWhyNow("Judges should see: wait → attempt → fail/succeed → next channel → audit.");
+      pushLog({
+        clock: "End",
+        title: "Process finished",
+        body: progressLabel(current),
+        tone: "info",
+      });
+      await refresh(current.caseId);
+    } finally {
+      if (runToken.current === token) {
+        setBusy(null);
+        setRunningStep(null);
+      }
+    }
+  }
+
+  const total = detail?.playbook?.length ?? 0;
+  const doneCount = detail ? completedSteps(detail).size : 0;
+  const meterPct = total === 0 ? 0 : Math.min(100, Math.round((doneCount / total) * 100));
+  const canStart =
+    detail != null &&
+    busy === null &&
+    detail.status !== "RECOVERED" &&
+    (detail.playbook?.length ?? 0) > 0;
+
   return (
     <div className="desk">
       <header className="desk-bar">
         <div>
-          <p className="pill">Day 3 desk · before the agent</p>
+          <p className="pill">Live demo desk · real playbook timeline (compressed)</p>
           <h1>Recovery issues</h1>
           <p>
-            Create a failure, see the four-step playbook Java will run, and read P(recovery) from the model.
-            The agent is not in this loop yet.
+            Start simulates real-world waits (48h payday, longer gaps, nudges), then runs the Java step and
+            shows whether it recovered — and why.
           </p>
         </div>
         <button
@@ -112,7 +376,8 @@ export default function RecoveryDesk() {
 
         <section>
           <p className="muted" style={{ marginBottom: "0.5rem" }}>
-            One click opens a RecoveryCase (same simulate APIs as Postman).
+            Pitch tip: create <strong>insufficient_funds</strong> (retries fail → pay link) or{" "}
+            <strong>risk-failed</strong> (blocked).
           </p>
           <div className="create-grid">
             {scenarios.map((scenario) => (
@@ -122,6 +387,15 @@ export default function RecoveryDesk() {
                 disabled={busy !== null}
                 onClick={() =>
                   run(scenario.slug, async () => {
+                    runToken.current += 1;
+                    setPhase("idle");
+                    setRunningStep(null);
+                    setLog([]);
+                    setOutcomeNow(null);
+                    setWaitClock(null);
+                    setTicker("Case created. Press Start recovery process.");
+                    setWhatNow("Case is ready.");
+                    setWhyNow("Start to walk the compressed real-world timeline.");
                     const created = await createIssue(scenario.slug);
                     await refresh(created.caseId);
                   })
@@ -141,7 +415,7 @@ export default function RecoveryDesk() {
               <span className="muted">{cases.length} demo cases</span>
             </div>
             {cases.length === 0 ? (
-              <p className="empty">No demo cases yet. Create one above. Training rows stay hidden.</p>
+              <p className="empty">No demo cases yet. Create one above.</p>
             ) : (
               <div className="rows">
                 {cases.map((row) => (
@@ -150,6 +424,15 @@ export default function RecoveryDesk() {
                     className={row.caseId === selectedId ? "case-row active" : "case-row"}
                     onClick={() =>
                       run("open", async () => {
+                        runToken.current += 1;
+                        setPhase("idle");
+                        setRunningStep(null);
+                        setLog([]);
+                        setOutcomeNow(null);
+                        setWaitClock(null);
+                        setTicker("Case selected. Press Start recovery process.");
+                        setWhatNow("Ready to simulate.");
+                        setWhyNow("Timeline waits are compressed for the video.");
                         setSelectedId(row.caseId);
                         setDetail(await getCase(row.caseId));
                       })
@@ -179,37 +462,101 @@ export default function RecoveryDesk() {
 
           <aside className="panel">
             <div className="panel-head">
-              <h2>This case</h2>
-              {detail ? (
-                <button
-                  className="ghost-btn"
-                  disabled={busy !== null || detail.status === "RECOVERED"}
-                  onClick={() =>
-                    run("exec", async () => {
-                      const next = await executeNext(detail.caseId);
-                      setDetail(next);
-                      await refresh(next.caseId);
-                    })
-                  }
-                >
-                  {busy === "exec" ? "Running…" : "Run next playbook step"}
-                </button>
-              ) : null}
+              <h2>Live process</h2>
+              <span className="muted">{detail ? progressLabel(detail) : "—"}</span>
             </div>
             {!detail ? (
-              <p className="empty">Select a case to see playbook + score.</p>
+              <p className="empty">Select a case to start the live demo.</p>
             ) : (
               <div className="detail">
-                <div className="score-card">
+                <div className="pipeline">
+                  <div className={`phase ${phaseState(phase, "detect")}`}>
+                    Detect
+                    <strong>Case open</strong>
+                  </div>
+                  <div className={`phase ${phaseState(phase, "score")}`}>
+                    Score
+                    <strong>P(recovery)</strong>
+                  </div>
+                  <div className={`phase ${phaseState(phase, "act")}`}>
+                    Act
+                    <strong>Playbook</strong>
+                  </div>
+                  <div className={`phase ${phaseState(phase, "done")}`}>
+                    Done
+                    <strong>Audit</strong>
+                  </div>
+                </div>
+
+                <div className="live-bar">
+                  <div style={{ flex: 1 }}>
+                    <div className="ticker">{ticker}</div>
+                    <div className="meter">
+                      <span style={{ width: `${phase === "done" ? 100 : meterPct}%` }} />
+                    </div>
+                  </div>
+                  <span className="muted" style={{ whiteSpace: "nowrap" }}>
+                    {doneCount}/{total || "—"}
+                  </span>
+                </div>
+
+                {waitClock ? (
+                  <div className="wait-card">
+                    <div>
+                      <p className="pill" style={{ color: "var(--navy)" }}>
+                        Simulated real-world wait
+                      </p>
+                      <strong className="display" style={{ fontSize: "1.35rem" }}>
+                        {waitClock}
+                      </strong>
+                      <span className="muted">Compressed for the demo — not a real 48h pause.</span>
+                    </div>
+                    <div className="wait-ring" style={{ ["--p" as string]: `${waitPct}%` }}>
+                      <span>{waitPct}%</span>
+                    </div>
+                  </div>
+                ) : null}
+
+                <button
+                  className={busy === "live" ? "start-btn running" : "start-btn"}
+                  disabled={!canStart}
+                  onClick={() => void startLiveProcess()}
+                >
+                  {busy === "live"
+                    ? "Simulating recovery…"
+                    : detail.status === "RECOVERED"
+                      ? "Process finished"
+                      : "Start recovery process"}
+                </button>
+
+                <div className="explain">
+                  <div>
+                    <p className="pill" style={{ color: "var(--navy)" }}>
+                      What is happening
+                    </p>
+                    <p>{whatNow}</p>
+                  </div>
+                  <div>
+                    <p className="pill" style={{ color: "var(--navy)" }}>
+                      Why
+                    </p>
+                    <p>{whyNow}</p>
+                  </div>
+                  {outcomeNow ? (
+                    <div className={`outcome ${outcomeNow.tone}`}>
+                      <p className="pill">Outcome</p>
+                      <strong>{outcomeNow.label}</strong>
+                      <p>{outcomeNow.detail}</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className={`score-card ${scorePop || phase === "score" ? "highlight" : ""}`}>
                   <div className="big">{pct(detail.score?.recoveryProbability ?? detail.recoveryProbability)}</div>
                   <div>
                     <strong>{detail.reason}</strong>
                     <p className="muted" style={{ color: "#c9d4e3" }}>
-                      {detail.score?.status === "SCORED"
-                        ? `P(recovery) for this customer. ${detail.score.skipRetry ? "Low P may skip extra retry." : "Playbook still owns execute."}`
-                        : detail.score?.status === "LOW_DATA"
-                          ? `Not enough labelled outcomes (${detail.score.labelledOutcomes} / ${detail.score.minLabelledOutcomes}). Playbook only.`
-                          : "ML is down or unreachable. Playbook only."}
+                      P(recovery) = will this customer likely pay eventually?
                     </p>
                     <p className="muted" style={{ color: "#c9d4e3" }}>
                       {inr(detail.amountAtRisk)} · {detail.caseId}
@@ -219,25 +566,52 @@ export default function RecoveryDesk() {
 
                 <div className="playbook">
                   <h3 className="display" style={{ margin: "0 0 0.6rem", fontSize: "1.05rem" }}>
-                    Playbook Java will run
+                    Playbook progress
                   </h3>
                   <ol>
-                    {(detail.playbook ?? []).map((step) => (
-                      <li key={step.step}>
-                        <span className="n">{step.step}</span>
-                        <div>
-                          <strong>{step.actionType.split("_").join(" ")}</strong>
-                          <span className="muted">{step.note}</span>
-                        </div>
-                      </li>
-                    ))}
+                    {(detail.playbook ?? []).map((step) => {
+                      const state = stepState(detail, step.step, runningStep);
+                      const finished = latestActionForStep(detail, step.step);
+                      return (
+                        <li key={step.step} className={state}>
+                          <span className="n">{step.step}</span>
+                          <div>
+                            <strong>{step.actionType.split("_").join(" ")}</strong>
+                            <span className="muted">{step.note}</span>
+                            {finished ? (
+                              <span className="muted">Result: {finished.status}</span>
+                            ) : null}
+                          </div>
+                          <span className="badge">
+                            {state === "running" ? "now" : state === "done" ? "done" : "wait"}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ol>
+                </div>
+
+                <div className="story">
+                  <strong>Story log</strong>
+                  {log.length === 0 ? (
+                    <span className="muted">Events appear here as the simulation runs.</span>
+                  ) : (
+                    log.map((line) => (
+                      <div key={line.id} className={`story-line ${line.tone}`}>
+                        <span>{line.clock}</span>
+                        <div>
+                          <strong>{line.title}</strong>
+                          <p>{line.body}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 <div className="audit">
                   <strong>Audit so far</strong>
                   {(detail.audit ?? []).length === 0 ? (
-                    <span className="muted">No audit rows yet.</span>
+                    <span className="muted">No audit rows yet — they appear as steps run.</span>
                   ) : (
                     detail.audit.map((line) => (
                       <div key={line.eventId}>
