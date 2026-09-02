@@ -1,9 +1,11 @@
 package com.razorpayhackthon.revenue_recovery.service.plan;
 
+import com.razorpayhackthon.revenue_recovery.dto.PlaybookStepPreview;
 import com.razorpayhackthon.revenue_recovery.dto.RecoveryCasePlanResponse;
 import com.razorpayhackthon.revenue_recovery.dto.RecoveryCasePlanResponse.AuditLine;
 import com.razorpayhackthon.revenue_recovery.dto.RecoveryCasePlanResponse.PlannedAction;
 import com.razorpayhackthon.revenue_recovery.dto.RecoveryCaseSummary;
+import com.razorpayhackthon.revenue_recovery.dto.ScorePeek;
 import com.razorpayhackthon.revenue_recovery.entity.AuditEvent;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryAction;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
@@ -12,6 +14,7 @@ import com.razorpayhackthon.revenue_recovery.repository.AuditEventRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryActionRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryCaseRepository;
 import com.razorpayhackthon.revenue_recovery.service.ml.MlDataGate;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -44,11 +47,18 @@ public class RecoveryActionPlanService {
 
 	@Transactional(readOnly = true)
 	public List<RecoveryCaseSummary> list() {
-		return recoveryCaseRepository
-				.findByMerchant_MerchantIdNotOrderByCreatedAtDesc(ML_TRAINING_MERCHANT_ID)
-				.stream()
-				.map(this::toSummary)
-				.toList();
+		List<RecoveryCase> cases = recoveryCaseRepository.findByMerchant_MerchantIdNotOrderByCreatedAtDesc(
+				ML_TRAINING_MERCHANT_ID);
+		List<RecoveryCaseSummary> rows = new ArrayList<>(cases.size());
+		ScorePeek fallback = null;
+		for (RecoveryCase recoveryCase : cases) {
+			ScorePeek score = fallback != null ? fallback : mlDataGate.peek(recoveryCase);
+			if (fallback == null && "UNAVAILABLE".equals(score.status())) {
+				fallback = score;
+			}
+			rows.add(toSummary(recoveryCase, score));
+		}
+		return rows;
 	}
 
 	@Transactional
@@ -93,7 +103,7 @@ public class RecoveryActionPlanService {
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "recovery case not found"));
 	}
 
-	private RecoveryCaseSummary toSummary(RecoveryCase recoveryCase) {
+	private RecoveryCaseSummary toSummary(RecoveryCase recoveryCase, ScorePeek score) {
 		List<RecoveryAction> actions =
 				recoveryActionRepository.findByRecoveryCase_CaseId(recoveryCase.getCaseId());
 		RecoveryAction first = actions.isEmpty() ? null : actions.getFirst();
@@ -105,7 +115,10 @@ public class RecoveryActionPlanService {
 				recoveryCase.getStatus().name(),
 				recoveryCase.getAmountAtRisk(),
 				first == null ? null : first.getActionType().name(),
-				first == null ? null : first.getStatus().name());
+				first == null ? null : first.getStatus().name(),
+				score.recoveryProbability(),
+				score.status(),
+				playbookFor(recoveryCase));
 	}
 
 	private RecoveryCasePlanResponse toPlan(
@@ -126,7 +139,17 @@ public class RecoveryActionPlanService {
 				recoveryCase.getClosedAt(),
 				planned.isEmpty() ? null : planned.getFirst(),
 				planned,
-				audit.stream().map(this::toAudit).toList());
+				audit.stream().map(this::toAudit).toList(),
+				playbookFor(recoveryCase),
+				mlDataGate.peek(recoveryCase));
+	}
+
+	private List<PlaybookStepPreview> playbookFor(RecoveryCase recoveryCase) {
+		String reason = recoveryCase.getReason() == null ? "" : recoveryCase.getReason().toLowerCase();
+		if (recoveryCase.getStatus() == RecoveryCaseStatus.RECOVERED || reason.contains("captured")) {
+			return List.of(new PlaybookStepPreview(1, "NO_ACTION", "Already recovered — close, do not chase"));
+		}
+		return baselineActionPlanner.pick(recoveryCase).playbook();
 	}
 
 	private PlannedAction toAction(RecoveryAction action) {

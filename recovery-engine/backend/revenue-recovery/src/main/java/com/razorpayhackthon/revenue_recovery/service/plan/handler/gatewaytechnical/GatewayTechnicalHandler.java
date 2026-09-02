@@ -1,11 +1,13 @@
 package com.razorpayhackthon.revenue_recovery.service.plan.handler.gatewaytechnical;
 
+import com.razorpayhackthon.revenue_recovery.dto.PlaybookStepPreview;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionStatus;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionType;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryCaseStatus;
 import com.razorpayhackthon.revenue_recovery.service.plan.PlannedDecision;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.BaselineReasonHandler;
+import com.razorpayhackthon.revenue_recovery.service.plan.handler.PlaybookPreviews;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.PlaybookRunner;
 import java.util.List;
 import org.springframework.core.annotation.Order;
@@ -42,5 +44,10 @@ public class GatewayTechnicalHandler implements BaselineReasonHandler {
 	@Override
 	public int executeNext(RecoveryCase recoveryCase) {
 		return playbookRunner.executeNext(recoveryCase, steps, "gateway_technical");
+	}
+
+	@Override
+	public List<PlaybookStepPreview> playbook() {
+		return PlaybookPreviews.from(steps);
 	}
 }

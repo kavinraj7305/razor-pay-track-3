@@ -1,7 +1,7 @@
 Created: **1 Sep 2026** (local demo checklist)
 Reason: one page of URLs so we can prove Day 1–2 baseline in the browser.
-Last updated: **1 Sep 2026, 19:40 IST**
-Why updated: point at the playbook-first → ML story in the intelligence plan.
+Last updated: **2 Sep 2026, 14:40 IST**
+Why updated: Recovery desk UI lists cases with playbook + P(recovery). Agent (Ollama) waits.
 
 # NEXT — do this now
 
@@ -47,9 +47,11 @@ Service folders + what each file is for: **[service-map.md](./service-map.md)**
 
 ---
 
+Desk UI (before agent): [http://localhost:3000](http://localhost:3000) — create issues, list playbook steps, read P(recovery). `cd recovery-engine/frontend && npm run dev`. Java **8080** + ML **8001**. Agent is **not** on this screen. Next LLM is **Ollama**, not Claude.
+
 ## Next
 
-1. Wire agent JSON onto Java `audit_event` (decision trace). Policy ALLOW/BLOCK. Java still `/execute`.
+1. After the desk is usable: Ollama propose-only agent (not Claude). Then copy agent JSON onto `audit_event`. Java still `/execute`.
 
 Kafka `recovery.events` / `action.events` and Redis cooldown/lock wait until those curl. Detail: [intelligence-layer-plan.md](./intelligence-layer-plan.md).
 
@@ -57,4 +59,4 @@ Kafka `recovery.events` / `action.events` and Redis cooldown/lock wait until tho
 
 ## Not next
 
-Voice, Vault, RLS, 80 error codes, new Kafka topics, frontend until `/predict` works.
+Voice, Vault, RLS, 80 error codes, new Kafka topics. Agent/Ollama waits until the desk is usable.

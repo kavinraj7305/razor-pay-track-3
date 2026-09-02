@@ -20,7 +20,9 @@ public record RecoveryCasePlanResponse(
 		LocalDateTime closedAt,
 		PlannedAction plan,
 		List<PlannedAction> actions,
-		List<AuditLine> audit) {
+		List<AuditLine> audit,
+		List<PlaybookStepPreview> playbook,
+		ScorePeek score) {
 
 	public record PlannedAction(
 			String actionId,

@@ -1,6 +1,7 @@
 package com.razorpayhackthon.revenue_recovery.service.ml;
 
 import com.razorpayhackthon.revenue_recovery.config.MlProperties;
+import com.razorpayhackthon.revenue_recovery.dto.ScorePeek;
 import com.razorpayhackthon.revenue_recovery.entity.AuditEvent;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryAction;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
@@ -46,6 +47,28 @@ public class MlDataGate {
 	}
 
 	public record Decision(boolean useProbability, long labelledOutcomes, Double probability, boolean skipRetry) {}
+
+	/** Read-only P(recovery) for the desk UI. Does not write audit or cancel retries. */
+	public ScorePeek peek(RecoveryCase recoveryCase) {
+		long labelled = recoveryOutcomeRepository.count();
+		long min = properties.getMinLabelledOutcomes();
+		if (labelled < min) {
+			return new ScorePeek("LOW_DATA", labelled, min, null, false, null);
+		}
+		PredictPayload features = customerFeatureService.snapshot(recoveryCase);
+		Optional<PredictApiResponse> scored = mlPredictClient.predict(features);
+		if (scored.isEmpty()) {
+			return new ScorePeek("UNAVAILABLE", labelled, min, null, false, null);
+		}
+		double probability = scored.get().recoveryProbability();
+		return new ScorePeek(
+				"SCORED",
+				labelled,
+				min,
+				probability,
+				shouldSkipRetry(features, probability),
+				scored.get().label());
+	}
 
 	@Transactional
 	public Decision beforeExecute(RecoveryCase recoveryCase) {

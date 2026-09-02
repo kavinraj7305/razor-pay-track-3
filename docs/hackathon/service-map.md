@@ -1,6 +1,9 @@
-# Service folder map
+Created: **1 Sep 2026, 16:10 IST**
+Reason: map Java `service/` folders so we do not dump everything in one class.
 
-Path: `recovery-engine/backend/revenue-recovery/src/main/java/com/razorpayhackthon/revenue_recovery/service/`
+Last updated: **2 Sep 2026, 14:40 IST**
+Why updated: list/get case now include playbook preview + ML peek for the desk UI.
+
 
 Controllers only call these. Each service file stays under **200 lines**.
 
@@ -93,5 +96,5 @@ controller
 |---|---|
 | `POST /webhooks/razorpay` | `webhook` then (async) `ingest` then `plan` |
 | `GET /api/webhooks/simulate/{slug}` | `webhook` → `ingest` → `plan` (same request) |
-| `GET /api/recovery-cases` | `plan` only (read) |
-| `GET /api/recovery-cases/{caseId}` | `plan` only (read) |
+| `GET /api/recovery-cases` | `plan` + ML peek + playbook preview (desk UI) |
+| `GET /api/recovery-cases/{caseId}` | same, plus actions + audit |

@@ -7,8 +7,5 @@
   "f1": 0.4731,
   "roc_auc": 0.7019,
   "pr_auc": 0.6691,
-    "threshold": 0.5,
-    "skip_below": 0.30,
-    "trust_at_or_above": 0.55,
-    "gray_decision": "USE_PLAYBOOK"
+  "threshold": 0.5
 }

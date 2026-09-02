@@ -1,6 +1,7 @@
 package com.razorpayhackthon.revenue_recovery.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public record RecoveryCaseSummary(
 		String caseId,
@@ -10,4 +11,7 @@ public record RecoveryCaseSummary(
 		String status,
 		BigDecimal amountAtRisk,
 		String actionType,
-		String actionStatus) {}
+		String actionStatus,
+		Double recoveryProbability,
+		String scoreStatus,
+		List<PlaybookStepPreview> playbook) {}

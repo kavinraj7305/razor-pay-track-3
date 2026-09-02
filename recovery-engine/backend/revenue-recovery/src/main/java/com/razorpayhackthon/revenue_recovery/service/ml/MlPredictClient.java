@@ -20,9 +20,9 @@ public class MlPredictClient {
 	private final RestClient restClient;
 	private final String predictUrl;
 
-	public MlPredictClient(RestClient.Builder builder, MlProperties properties) {
+	public MlPredictClient(MlProperties properties) {
 		this.predictUrl = properties.getPredictUrl();
-		this.restClient = builder
+		this.restClient = RestClient.builder()
 				.requestFactory(requestFactory())
 				.build();
 	}

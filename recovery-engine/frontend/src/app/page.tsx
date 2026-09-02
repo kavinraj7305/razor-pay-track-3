@@ -1,103 +1,256 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useCallback, useEffect, useState } from "react";
+import {
+  createAllIssues,
+  createIssue,
+  executeNext,
+  getCase,
+  inr,
+  listCases,
+  listScenarios,
+  pct,
+} from "@/lib/api";
+import type { CaseDetail, CaseSummary, Scenario } from "@/lib/types";
+
+function scoreClass(value: number | null) {
+  if (value == null) {
+    return "score score-na";
+  }
+  return value < 0.25 ? "score low" : "score high";
+}
+
+function scoreLabel(row: Pick<CaseSummary, "recoveryProbability" | "scoreStatus">) {
+  if (row.scoreStatus === "LOW_DATA") {
+    return "playbook";
+  }
+  if (row.scoreStatus === "UNAVAILABLE") {
+    return "no ML";
+  }
+  return pct(row.recoveryProbability);
+}
+
+export default function RecoveryDesk() {
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [cases, setCases] = useState<CaseSummary[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<CaseDetail | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async (keepId?: string | null) => {
+    const rows = await listCases();
+    setCases(rows);
+    const nextId = keepId && rows.some((row) => row.caseId === keepId) ? keepId : rows[0]?.caseId ?? null;
+    setSelectedId(nextId);
+    if (nextId) {
+      setDetail(await getCase(nextId));
+    } else {
+      setDetail(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalog = await listScenarios();
+        if (!cancelled) {
+          setScenarios(catalog);
+        }
+        await refresh();
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Backend is not reachable on :8080");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh]);
+
+  async function run(label: string, work: () => Promise<void>) {
+    setBusy(label);
+    setError(null);
+    try {
+      await work();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="desk">
+      <header className="desk-bar">
+        <div>
+          <p className="pill">Day 3 desk · before the agent</p>
+          <h1>Recovery issues</h1>
+          <p>
+            Create a failure, see the four-step playbook Java will run, and read P(recovery) from the model.
+            The agent is not in this loop yet.
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          className="primary-btn"
+          disabled={busy !== null}
+          onClick={() =>
+            run("all", async () => {
+              await createAllIssues();
+              await refresh(selectedId);
+            })
+          }
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          {busy === "all" ? "Creating pack…" : "Create all 8 issues"}
+        </button>
+      </header>
+
+      <div className="wrap">
+        {error ? <div className="err">{error}</div> : null}
+
+        <section>
+          <p className="muted" style={{ marginBottom: "0.5rem" }}>
+            One click opens a RecoveryCase (same simulate APIs as Postman).
+          </p>
+          <div className="create-grid">
+            {scenarios.map((scenario) => (
+              <button
+                key={scenario.slug}
+                className="issue-btn"
+                disabled={busy !== null}
+                onClick={() =>
+                  run(scenario.slug, async () => {
+                    const created = await createIssue(scenario.slug);
+                    await refresh(created.caseId);
+                  })
+                }
+              >
+                {scenario.reason}
+                <small>{scenario.intendedAction}</small>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <div className="desk-split">
+          <section className="panel">
+            <div className="panel-head">
+              <h2>Open issues</h2>
+              <span className="muted">{cases.length} demo cases</span>
+            </div>
+            {cases.length === 0 ? (
+              <p className="empty">No demo cases yet. Create one above. Training rows stay hidden.</p>
+            ) : (
+              <div className="rows">
+                {cases.map((row) => (
+                  <button
+                    key={row.caseId}
+                    className={row.caseId === selectedId ? "case-row active" : "case-row"}
+                    onClick={() =>
+                      run("open", async () => {
+                        setSelectedId(row.caseId);
+                        setDetail(await getCase(row.caseId));
+                      })
+                    }
+                  >
+                    <span className={scoreClass(row.recoveryProbability)}>{scoreLabel(row)}</span>
+                    <span>
+                      <span className="reason">{row.reason}</span>
+                      <span className="muted">
+                        {row.status} · {row.source}
+                      </span>
+                      <span className="steps">
+                        {row.playbook.slice(0, 4).map((step) => (
+                          <span key={step.step} className="chip">
+                            {step.step}. {step.actionType.split("_").join(" ")}
+                          </span>
+                        ))}
+                      </span>
+                    </span>
+                    <span>{inr(row.amountAtRisk)}</span>
+                    <span className="muted">{row.actionStatus ?? "—"}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <aside className="panel">
+            <div className="panel-head">
+              <h2>This case</h2>
+              {detail ? (
+                <button
+                  className="ghost-btn"
+                  disabled={busy !== null || detail.status === "RECOVERED"}
+                  onClick={() =>
+                    run("exec", async () => {
+                      const next = await executeNext(detail.caseId);
+                      setDetail(next);
+                      await refresh(next.caseId);
+                    })
+                  }
+                >
+                  {busy === "exec" ? "Running…" : "Run next playbook step"}
+                </button>
+              ) : null}
+            </div>
+            {!detail ? (
+              <p className="empty">Select a case to see playbook + score.</p>
+            ) : (
+              <div className="detail">
+                <div className="score-card">
+                  <div className="big">{pct(detail.score?.recoveryProbability ?? detail.recoveryProbability)}</div>
+                  <div>
+                    <strong>{detail.reason}</strong>
+                    <p className="muted" style={{ color: "#c9d4e3" }}>
+                      {detail.score?.status === "SCORED"
+                        ? `P(recovery) for this customer. ${detail.score.skipRetry ? "Low P may skip extra retry." : "Playbook still owns execute."}`
+                        : detail.score?.status === "LOW_DATA"
+                          ? `Not enough labelled outcomes (${detail.score.labelledOutcomes} / ${detail.score.minLabelledOutcomes}). Playbook only.`
+                          : "ML is down or unreachable. Playbook only."}
+                    </p>
+                    <p className="muted" style={{ color: "#c9d4e3" }}>
+                      {inr(detail.amountAtRisk)} · {detail.caseId}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="playbook">
+                  <h3 className="display" style={{ margin: "0 0 0.6rem", fontSize: "1.05rem" }}>
+                    Playbook Java will run
+                  </h3>
+                  <ol>
+                    {(detail.playbook ?? []).map((step) => (
+                      <li key={step.step}>
+                        <span className="n">{step.step}</span>
+                        <div>
+                          <strong>{step.actionType.split("_").join(" ")}</strong>
+                          <span className="muted">{step.note}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                <div className="audit">
+                  <strong>Audit so far</strong>
+                  {(detail.audit ?? []).length === 0 ? (
+                    <span className="muted">No audit rows yet.</span>
+                  ) : (
+                    detail.audit.map((line) => (
+                      <div key={line.eventId}>
+                        {line.eventType} · {line.action}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </aside>
+        </div>
+      </div>
     </div>
   );
 }
