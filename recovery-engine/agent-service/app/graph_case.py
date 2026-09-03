@@ -39,6 +39,7 @@ def node_safety(state: CaseState) -> dict:
         return {"proposal": fallback_from_context(ctx)}
     draft = dict(state["draft"])
     draft["reasonCode"] = ctx.get("reason")
+    draft["amountInr"] = ctx.get("amountInr")
     safe = apply_safety(
         draft,
         fallback_used=False,

@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import psycopg
+
 from app.config import settings
 from app.db import connect
+from app.log import log
 from app.propose_fallback import default_playbook_action
 from app.tools import predict_recovery
 
@@ -21,7 +24,8 @@ def _segment(success_rate: float, history_count: int) -> str:
 def _load_case_row(case_id: str) -> dict[str, Any] | None:
     try:
         return _load_case_row_inner(case_id)
-    except Exception:
+    except psycopg.Error as exc:
+        log.warning("context load failed caseId=%s err=%s", case_id, exc)
         return None
 
 
@@ -57,7 +61,8 @@ def _load_case_row_inner(case_id: str) -> dict[str, Any] | None:
                 SELECT status, payment_type, amount, created_at
                 FROM payment
                 WHERE customer_id = %s
-                ORDER BY created_at
+                ORDER BY created_at DESC
+                LIMIT 200
                 """,
                 (customer_id,),
             )

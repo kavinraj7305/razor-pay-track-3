@@ -8,6 +8,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.config import settings
 from app.diagnose import narrate_ops
+from app.log import log
 from app.patterns import gather_patterns
 from app.safety import apply_ops_safety
 
@@ -26,7 +27,8 @@ def node_metrics(state: OpsState) -> dict:
     try:
         metrics, patterns = gather_patterns(state["window_hours"], state.get("merchant_id"))
         return {"metrics": metrics, "patterns": patterns}
-    except Exception:
+    except Exception as exc:
+        log.warning("ops metrics failed: %s", exc)
         hours = state["window_hours"]
         return {
             "metrics": {

@@ -127,7 +127,7 @@ export default function RecoveryDesk() {
           setScenarios(catalog);
         }
         await refresh();
-        await loadBriefing();
+        void loadBriefing();
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Backend is not reachable on :8080");

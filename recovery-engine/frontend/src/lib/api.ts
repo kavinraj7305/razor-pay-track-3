@@ -38,6 +38,7 @@ export function proposeCase(caseId: string) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ caseId }),
+    signal: AbortSignal.timeout(60000),
   });
 }
 
@@ -46,6 +47,7 @@ export function opsBriefing(windowHours = 6) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ windowHours }),
+    signal: AbortSignal.timeout(60000),
   });
 }
 

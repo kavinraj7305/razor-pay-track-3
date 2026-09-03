@@ -9,6 +9,7 @@ from app.db import connect
 
 
 def gather_patterns(window_hours: int, merchant_id: str | None = None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    window_hours = max(1, min(int(window_hours), 72))
     exclude = settings.exclude_training_merchant
     with connect() as conn, conn.cursor() as cur:
         params: list[Any] = [window_hours, exclude]
@@ -23,7 +24,7 @@ def gather_patterns(window_hours: int, merchant_id: str | None = None) -> tuple[
             f"""
             SELECT reason, source, count(*)::int AS cnt,
                    coalesce(sum(amount_at_risk), 0) AS revenue_at_risk,
-                   array_agg(case_id ORDER BY created_at DESC) AS case_ids
+                   (array_agg(case_id ORDER BY created_at DESC))[1:8] AS case_ids
             FROM recovery_case
             WHERE created_at >= now() - (%s * interval '1 hour')
               AND merchant_id <> %s
@@ -66,7 +67,7 @@ def gather_patterns(window_hours: int, merchant_id: str | None = None) -> tuple[
         cur.execute(
             f"""
             SELECT customer_id, reason, count(*)::int AS cnt,
-                   array_agg(case_id ORDER BY created_at DESC) AS case_ids
+                   (array_agg(case_id ORDER BY created_at DESC))[1:8] AS case_ids
             FROM recovery_case
             WHERE created_at >= now() - (%s * interval '1 hour')
               AND merchant_id <> %s
