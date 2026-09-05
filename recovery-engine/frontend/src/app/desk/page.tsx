@@ -9,7 +9,7 @@ export default function DeskPage() {
       <DeskChrome
         kicker="CEO desk"
         title="Recovery desk"
-        blurb="Open a failed payment, see who is likely to pay, and run the playbook. Held cases wait for the other person."
+        blurb="Pick a failed payment, see why it stalled, and start recovery."
       >
         <RecoveryDesk />
       </DeskChrome>

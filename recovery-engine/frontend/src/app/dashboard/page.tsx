@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DeskChrome, RoleGate } from "@/components/DeskChrome";
-import { PlatformStrip } from "@/components/PlatformStrip";
-import { adminBenchmark, adminDashboard, adminPlatform, inr, pct, prettyError } from "@/lib/api";
-import type { BenchmarkReport, DashboardSnapshot, PlatformStatus } from "@/lib/types";
+import { adminBenchmark, adminDashboard, inr, pct, prettyError } from "@/lib/api";
+import type { BenchmarkReport, DashboardSnapshot } from "@/lib/types";
 
 export default function DashboardPage() {
   return (
@@ -23,18 +22,12 @@ export default function DashboardPage() {
 function AdminBody() {
   const [snap, setSnap] = useState<DashboardSnapshot | null>(null);
   const [bench, setBench] = useState<BenchmarkReport | null>(null);
-  const [platform, setPlatform] = useState<PlatformStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [nextSnap, nextBench, nextPlatform] = await Promise.all([
-      adminDashboard(),
-      adminBenchmark(),
-      adminPlatform().catch(() => null),
-    ]);
+    const [nextSnap, nextBench] = await Promise.all([adminDashboard(), adminBenchmark()]);
     setSnap(nextSnap);
     setBench(nextBench);
-    setPlatform(nextPlatform);
   }, []);
 
   useEffect(() => {
@@ -44,17 +37,11 @@ function AdminBody() {
   return (
     <div className="wrap">
       {error ? <div className="err">{error}</div> : null}
-      <PlatformStrip status={platform} />
       <section className="stat-grid">
         <article className="stat">
           <p className="pill">Amount at risk</p>
           <strong>{inr(snap?.amountAtRisk)}</strong>
           <span className="muted">{snap?.open ?? 0} open cases</span>
-        </article>
-        <article className="stat">
-          <p className="pill">Waiting on policy</p>
-          <strong>{snap?.pendingApprovals ?? "—"}</strong>
-          <span className="muted">Human-in-the-loop queue</span>
         </article>
         <article className="stat">
           <p className="pill">Recovered</p>

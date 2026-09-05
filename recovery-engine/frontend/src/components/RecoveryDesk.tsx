@@ -1,180 +1,47 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PlatformStrip } from "@/components/PlatformStrip";
 import {
-  adminPlatform,
-  createAllIssues,
   createIssue,
   executeNext,
   getCase,
   inr,
   listCases,
   listScenarios,
-  opsBriefing,
-  pct,
   proposeCase,
   recordAgentProposal,
-  webhookInbox,
 } from "@/lib/api";
 import {
-  latestActionForStep,
-  outcomeFor,
-  storyFor,
-  type LogLine,
-} from "@/lib/narrative";
-import { completedSteps, progressLabel, remainingSteps, sleep } from "@/lib/progress";
-import type {
-  CaseDetail,
-  CaseProposal,
-  CaseSummary,
-  OpsBriefing,
-  PlatformStatus,
-  Scenario,
-  WebhookInboxSnapshot,
-} from "@/lib/types";
-
-type Phase = "idle" | "detect" | "score" | "act" | "done";
-
-function scoreClass(value: number | null) {
-  if (value == null) {
-    return "score score-na";
-  }
-  return value < 0.25 ? "score low" : "score high";
-}
-
-function scoreLabel(row: Pick<CaseSummary, "recoveryProbability" | "scoreStatus">) {
-  if (row.scoreStatus === "LOW_DATA") {
-    return "playbook";
-  }
-  if (row.scoreStatus === "UNAVAILABLE") {
-    return "no ML";
-  }
-  return pct(row.recoveryProbability);
-}
-
-function phaseState(current: Phase, name: Phase): "done" | "active" | "" {
-  const order: Phase[] = ["detect", "score", "act", "done"];
-  const here = order.indexOf(name);
-  const now = order.indexOf(current === "idle" ? "detect" : current);
-  if (current === "idle") {
-    return "";
-  }
-  if (here < now) {
-    return "done";
-  }
-  if (here === now) {
-    return "active";
-  }
-  return "";
-}
-
-function actionWords(value: string) {
-  return value.split("_").join(" ");
-}
-
-function proposalFromAudit(detail: CaseDetail | null): CaseProposal | null {
-  const line = [...(detail?.audit ?? [])].reverse().find((item) => item.eventType === "AGENT_PROPOSE");
-  const raw = line?.details;
-  if (!raw || typeof raw.recommendedAction !== "string") {
-    return null;
-  }
-  return {
-    caseId: typeof raw.caseId === "string" ? raw.caseId : detail?.caseId ?? null,
-    diagnosis: String(raw.diagnosis ?? "UNKNOWN_FAILURE"),
-    reasoning: String(raw.reasoning ?? raw.reason ?? ""),
-    recommendedAction: String(raw.recommendedAction),
-    defaultPlaybookAction: String(raw.defaultPlaybookAction ?? ""),
-    deviatesFromPlaybook: Boolean(raw.deviatesFromPlaybook),
-    confidence: Number(raw.confidence ?? 0),
-    mlScore: raw.mlScore == null ? null : Number(raw.mlScore),
-    escalate: Boolean(raw.escalate),
-    actionsAvailable: Array.isArray(raw.actionsAvailable) ? raw.actionsAvailable.map(String) : ["propose"],
-    executes: false,
-    model: String(raw.model ?? "fallback-rules"),
-    fallbackUsed: Boolean(raw.fallbackUsed),
-  };
-}
-
-function auditDetail(line: { eventType: string; details: Record<string, unknown> | null }) {
-  const details = line.details;
-  if (!details) {
-    return "";
-  }
-  if (line.eventType === "AGENT_PROPOSE") {
-    return `${String(details.recommendedAction ?? "")} · escalate=${String(details.escalate ?? false)}`;
-  }
-  if (line.eventType.startsWith("POLICY_")) {
-    return `${String(details.verdict ?? "")} · ${String(details.reason ?? "")}`;
-  }
-  if (typeof details.note === "string") {
-    return details.note;
-  }
-  return "";
-}
-
-function stepState(detail: CaseDetail, step: number, runningStep: number | null) {
-  if (runningStep === step) {
-    return "running";
-  }
-  if (completedSteps(detail).has(step)) {
-    return "done";
-  }
-  return "pending";
-}
+  actionLabel,
+  auditTitle,
+  chanceLabel,
+  policyBanner,
+  prettyWords,
+  reasonBlurb,
+  statusLabel,
+  stepResult,
+} from "@/lib/copy";
+import { latestActionForStep, outcomeFor, storyFor } from "@/lib/narrative";
+import { completedSteps, remainingSteps, sleep } from "@/lib/progress";
+import type { CaseDetail, CaseProposal, CaseSummary, Scenario } from "@/lib/types";
 
 export function RecoveryDesk() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [newSlug, setNewSlug] = useState("");
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<CaseDetail | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [ticker, setTicker] = useState("Select a case, then start recovery.");
+  const [ticker, setTicker] = useState("Pick a case, then start recovery.");
   const [runningStep, setRunningStep] = useState<number | null>(null);
-  const [scorePop, setScorePop] = useState(false);
   const [waitPct, setWaitPct] = useState(0);
   const [waitClock, setWaitClock] = useState<string | null>(null);
-  const [whatNow, setWhatNow] = useState("Nothing running yet.");
-  const [whyNow, setWhyNow] = useState("Start runs the playbook one step at a time. Waits are shortened so the next action can run.");
   const [outcomeNow, setOutcomeNow] = useState<{ label: string; tone: string; detail: string } | null>(
     null,
   );
-  const [log, setLog] = useState<LogLine[]>([]);
   const [proposal, setProposal] = useState<CaseProposal | null>(null);
-  const [briefing, setBriefing] = useState<OpsBriefing | null>(null);
-  const [inbox, setInbox] = useState<WebhookInboxSnapshot | null>(null);
-  const [platform, setPlatform] = useState<PlatformStatus | null>(null);
   const runToken = useRef(0);
-
-  const loadBriefing = useCallback(async () => {
-    try {
-      setBriefing(await opsBriefing(6));
-    } catch {
-      setBriefing(null);
-    }
-  }, []);
-
-  const loadInbox = useCallback(async () => {
-    try {
-      setInbox(await webhookInbox());
-    } catch {
-      setInbox(null);
-    }
-  }, []);
-
-  const loadPlatform = useCallback(async () => {
-    try {
-      setPlatform(await adminPlatform());
-    } catch {
-      setPlatform(null);
-    }
-  }, []);
-
-  const pushLog = useCallback((line: Omit<LogLine, "id">) => {
-    setLog((prev) => [{ ...line, id: `${Date.now()}-${prev.length}` }, ...prev].slice(0, 24));
-  }, []);
 
   const refresh = useCallback(async (keepId?: string | null) => {
     const rows = await listCases();
@@ -182,9 +49,12 @@ export function RecoveryDesk() {
     const nextId = keepId && rows.some((row) => row.caseId === keepId) ? keepId : rows[0]?.caseId ?? null;
     setSelectedId(nextId);
     if (nextId) {
-      setDetail(await getCase(nextId));
+      const opened = await getCase(nextId);
+      setDetail(opened);
+      setProposal(proposalFromAudit(opened));
     } else {
       setDetail(null);
+      setProposal(null);
     }
   }, []);
 
@@ -195,11 +65,9 @@ export function RecoveryDesk() {
         const catalog = await listScenarios();
         if (!cancelled) {
           setScenarios(catalog);
+          setNewSlug(catalog[0]?.slug ?? "");
         }
         await refresh();
-        void loadBriefing();
-        void loadInbox();
-        void loadPlatform();
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Recovery service is not reachable.");
@@ -209,15 +77,7 @@ export function RecoveryDesk() {
     return () => {
       cancelled = true;
     };
-  }, [refresh, loadBriefing, loadInbox, loadPlatform]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      void loadInbox();
-      void loadPlatform();
-    }, 4000);
-    return () => window.clearInterval(timer);
-  }, [loadInbox, loadPlatform]);
+  }, [refresh]);
 
   async function run(label: string, work: () => Promise<void>) {
     setBusy(label);
@@ -245,6 +105,15 @@ export function RecoveryDesk() {
     return true;
   }
 
+  function resetRun() {
+    runToken.current += 1;
+    setRunningStep(null);
+    setOutcomeNow(null);
+    setWaitClock(null);
+    setWaitPct(0);
+    setTicker("Pick a case, then start recovery.");
+  }
+
   async function startLiveProcess() {
     if (!detail) {
       return;
@@ -252,9 +121,7 @@ export function RecoveryDesk() {
     const token = ++runToken.current;
     setBusy("live");
     setError(null);
-    setScorePop(false);
     setOutcomeNow(null);
-    setLog([]);
     setWaitPct(0);
     setWaitClock(null);
 
@@ -262,77 +129,43 @@ export function RecoveryDesk() {
       let current = detail;
       const hasProposal = current.audit?.some((line) => line.eventType === "AGENT_PROPOSE");
       if (!hasProposal) {
-        setTicker("Asking the agent first — policy needs a written proposal.");
-        setWhatNow("Nothing is charged until the proposal is stored and policy has read it.");
-        setWhyNow("The agent can only propose. Policy then allows, skips, or holds the case.");
+        setTicker("Reading the case before anything is charged.");
         const next = await proposeCase(current.caseId);
         setProposal(next);
         current = await recordAgentProposal(current.caseId, next);
         setDetail(current);
-        pushLog({
-          clock: "T+0",
-          title: "Agent propose stored",
-          body: `${next.recommendedAction} · escalate=${String(next.escalate)}`,
-          tone: "info",
-        });
       }
 
-      setPhase("detect");
-      setTicker("Failure detected — opening recovery case.");
-      setWhatNow("This failure opened a recovery case.");
-      setWhyNow("Money is at risk. We diagnose by failure reason before any charge.");
-      pushLog({
-        clock: "T+0",
-        title: "Detected",
-        body: `${detail.reason} · ${inr(detail.amountAtRisk)} at risk`,
-        tone: "info",
-      });
-      await sleep(1000);
+      setTicker("This failure is now a recovery case.");
+      await sleep(700);
       if (runToken.current !== token) {
         return;
       }
 
-      setPhase("score");
-      setScorePop(true);
-      const probability = detail.score?.recoveryProbability ?? detail.recoveryProbability;
+      const probability = current.score?.recoveryProbability ?? current.recoveryProbability;
       setTicker(
         probability == null
-          ? "Scoring skipped — ML down. Playbook still runs."
-          : `Scoring this customer — P(recovery) = ${pct(probability)}`,
+          ? "Following the usual plan for this failure."
+          : `Chance they pay: ${Math.round(probability * 100)}%.`,
       );
-      setWhatNow("ML reads payment history, LTV, delays, and this failure.");
-      setWhyNow(
-        probability == null
-          ? "Without a score we still follow the reason playbook safely."
-          : "The same shortfall can get a different chase depending on who is likely to pay.",
-      );
-      pushLog({
-        clock: "T+0",
-        title: "Scored",
-        body:
-          probability == null
-            ? "ML unavailable — playbook only"
-            : `P(recovery)=${pct(probability)} (${detail.score?.status ?? "SCORED"})`,
-        tone: "info",
-      });
-      await sleep(1400);
+      await sleep(900);
       if (runToken.current !== token) {
         return;
       }
 
-      setPhase("act");
       current = await getCase(current.caseId);
       setDetail(current);
 
       if (current.status === "RECOVERED") {
-        setPhase("done");
-        setTicker("Already recovered — process stops.");
-        setWhatNow("Payment captured / case closed.");
-        setWhyNow("No more retries.");
+        setTicker("Already recovered.");
+        setOutcomeNow({
+          label: "Recovered",
+          tone: "ok",
+          detail: "This payment already came back. Nothing more to run.",
+        });
         return;
       }
 
-      // Snapshot remaining steps once — each step runs at most one wait + one execute.
       const queue = remainingSteps(current);
       const ran = new Set<number>();
 
@@ -352,25 +185,15 @@ export function RecoveryDesk() {
         const story = storyFor(current.reason, next, probabilityNow);
         setRunningStep(next.step);
         setWaitClock(story.clockLabel);
-        setTicker(story.waitLabel);
-        setWhatNow(story.what);
-        setWhyNow(story.why);
+        setTicker(story.what);
         setOutcomeNow(null);
-        pushLog({
-          clock: story.clockLabel,
-          title: `Wait once · step ${next.step}`,
-          body: `${story.waitLabel} — then one execute, not a loop`,
-          tone: "wait",
-        });
 
         const ok = await animateWait(story.waitMs, token);
         if (!ok) {
           return;
         }
 
-        setTicker(`One execute · step ${next.step}: ${next.actionType.split("_").join(" ")}`);
-        setWhatNow(`Running this playbook step once.`);
-        setWhyNow("The wait is shortened so the next step can run. Each step executes once, then we move on.");
+        setTicker(`Running: ${actionLabel(next.actionType)}`);
 
         const doneBefore = completedSteps(current).size;
         try {
@@ -379,32 +202,18 @@ export function RecoveryDesk() {
             setDetail(current);
             setRunningStep(null);
             setWaitClock(null);
-            setTicker("Stopped — policy guard must approve this case.");
-            setWhatNow("Policy held this case. The other person reviews it next.");
-            setWhyNow(`${current.policy.reason} · waiting in the policy queue.`);
+            setTicker("Held for the other person.");
             setOutcomeNow({
-              label: "Waiting for approval",
+              label: "Waiting for review",
               tone: "stop",
-              detail: "This case waits for the human in the loop. After they sign off, Start can continue.",
-            });
-            pushLog({
-              clock: story.clockLabel,
-              title: "Policy blocked",
-              body: current.policy.reason,
-              tone: "stop",
+              detail: "This case waits for the other person. After they let it through, you can start again.",
             });
             return;
           }
         } catch (err) {
-          const message = err instanceof Error ? err.message : "Execute failed";
+          const message = err instanceof Error ? err.message : "This step could not run.";
           setError(message);
-          setTicker("Stopped — execute failed.");
-          setWhatNow(message);
-          setWhyNow(
-            message.includes("no playbook")
-              ? "This failure type does not have a full playbook path yet. Open an insufficient-funds or risk case instead."
-              : "The recovery step was rejected.",
-          );
+          setTicker("Stopped.");
           setRunningStep(null);
           setWaitClock(null);
           return;
@@ -416,52 +225,34 @@ export function RecoveryDesk() {
         const outcome = progressed
           ? outcomeFor(finished, current.reason)
           : {
-              label: "Skipped — no repeat",
+              label: "Stopped here",
               tone: "stop" as const,
-              detail:
-                "This step was skipped. Stopping here so the later window does not run again.",
+              detail: "This step was skipped so the same window does not run again.",
             };
         setOutcomeNow(outcome);
         setRunningStep(null);
-        setTicker(`Step ${next.step} finished once · ${outcome.label}`);
-        setWhatNow(outcome.detail);
-        setWhyNow(story.why);
-        pushLog({
-          clock: story.clockLabel,
-          title: `${outcome.label} · step ${next.step}`,
-          body: outcome.detail,
-          tone: outcome.tone === "fail" ? "fail" : outcome.tone === "stop" ? "stop" : "ok",
-        });
+        setTicker(outcome.label);
 
         if (!progressed) {
           break;
         }
 
-        await sleep(900);
+        await sleep(700);
       }
 
       if (runToken.current !== token) {
         return;
       }
-      setPhase("done");
       setWaitClock(null);
       setWaitPct(100);
-      setTicker(
-        current.status === "RECOVERED"
-          ? "Done — revenue recovered."
-          : "Done — playbook finished for this run (may still be unpaid).",
-      );
-      setWhatNow(
-        current.status === "RECOVERED"
-          ? "Case closed as recovered."
-          : "All planned steps ran. DEV retries often fail on purpose so you can see the full chain.",
-      );
-      setWhyNow("Judges should see: wait → attempt → fail/succeed → next channel → audit.");
-      pushLog({
-        clock: "End",
-        title: "Process finished",
-        body: progressLabel(current),
-        tone: "info",
+      const recovered = current.status === "RECOVERED";
+      setTicker(recovered ? "Recovered." : "The plan for this run is finished.");
+      setOutcomeNow({
+        label: recovered ? "Recovered" : "Plan finished",
+        tone: recovered ? "ok" : "stop",
+        detail: recovered
+          ? "The money came back. This case is closed."
+          : "Every planned step ran. The case may still be unpaid.",
       });
       await refresh(current.caseId);
     } finally {
@@ -475,189 +266,58 @@ export function RecoveryDesk() {
   const total = detail?.playbook?.length ?? 0;
   const doneCount = detail ? completedSteps(detail).size : 0;
   const meterPct = total === 0 ? 0 : Math.min(100, Math.round((doneCount / total) * 100));
+  const held = detail?.policy?.verdict === "BLOCK" && detail.policy.reason !== "HUMAN_OVERRIDE";
   const canStart =
     detail != null &&
     busy === null &&
     detail.status !== "RECOVERED" &&
+    !held &&
     (detail.playbook?.length ?? 0) > 0;
-  const canAsk = detail != null && busy === null;
-
-  async function askAgent() {
-    if (!detail) {
-      return;
-    }
-    await run("agent", async () => {
-      const caseId = detail.caseId;
-      const next = await proposeCase(caseId);
-      setProposal(next);
-      const stored = await recordAgentProposal(caseId, next);
-      setDetail(stored);
-      setTicker(
-        next.deviatesFromPlaybook
-          ? `Agent deviates: ${actionWords(next.recommendedAction)} (playbook: ${actionWords(next.defaultPlaybookAction)})`
-          : `Agent agrees with playbook: ${actionWords(next.recommendedAction)}`,
-      );
-      setWhatNow(next.diagnosis.replaceAll("_", " "));
-      setWhyNow(next.reasoning);
-    });
-  }
+  const nextStep = detail ? remainingSteps(detail)[0] : null;
+  const recommended = proposal ? actionLabel(proposal.recommendedAction) : nextStep ? actionLabel(nextStep.actionType) : "—";
+  const atRisk = cases.reduce((sum, row) => sum + Number(row.amountAtRisk ?? 0), 0);
+  const activity = detail
+    ? [...detail.audit].reverse().slice(0, 6).map((line) => ({
+        id: line.eventId,
+        title: auditTitle(line.eventType),
+        body: humanAuditBody(line),
+      }))
+    : [];
 
   return (
-    <div>
-      <div className="wrap">
-        <div className="desk-actions">
-          <button
-            className="primary-btn"
-            disabled={busy !== null}
-            onClick={() =>
-              run("all", async () => {
-                await createAllIssues();
-                await refresh(selectedId);
-                await loadBriefing();
-                await loadInbox();
-              })
-            }
-          >
-            {busy === "all" ? "Creating pack…" : "Create all failure types"}
-          </button>
-        </div>
-        {error ? <div className="err">{error}</div> : null}
-        <PlatformStrip status={platform} />
+    <div className="wrap">
+      {error ? <div className="err">{error}</div> : null}
 
-        {briefing && briefing.patterns.length > 0 ? (
-          <section className="ops-strip">
-            <div className="ops-head">
-              <div>
-                <p className="pill">What is repeating</p>
-                <strong>{briefing.summary}</strong>
-              </div>
-              <div className="safety-chips">
-                <span className="chip">Proposes only</span>
-                <span className="chip">Cannot charge</span>
-                {briefing.fallbackUsed ? <span className="chip warn">Using fallback rules</span> : null}
-              </div>
-            </div>
-            {briefing.patterns.map((item) => (
-              <article key={`${item.pattern}-${item.where}`} className={`ops-alert ${item.severity.toLowerCase()}`}>
-                <span className="badge">{item.severity}</span>
-                <div>
-                  <strong>{item.pattern.replaceAll("_", " ")}</strong>
-                  <p>
-                    {item.why} · {item.proposedSolution}
-                  </p>
-                  <span className="muted">
-                    {item.where} · {item.count} cases
-                  </span>
-                </div>
-              </article>
-            ))}
-          </section>
-        ) : null}
-
-        {inbox && inbox.signedCount > 0 ? (
-          <section className="hmac-strip">
-            <div className="ops-head">
-              <div>
-                <p className="pill">Signed payment events</p>
-                <strong>
-                  {inbox.razorpayCount > 0
-                    ? `${inbox.razorpayCount} verified event${inbox.razorpayCount === 1 ? "" : "s"} from Razorpay.`
-                    : `${inbox.signedCount} verified event${inbox.signedCount === 1 ? "" : "s"} signed locally.`}
-                </strong>
-              </div>
-              <div className="safety-chips">
-                <span className="chip">Signature checked</span>
-                {inbox.razorpayCount ? <span className="chip go">Razorpay {inbox.razorpayCount}</span> : null}
-              </div>
-            </div>
-            {inbox.events
-              .filter((item) => item.origin === "RAZORPAY" || item.origin === "LOCAL_SCRIPT" || item.signatureVerified)
-              .slice(0, 4)
-              .map((item) => (
-              <article
-                key={item.eventId}
-                className={`hmac-row ${item.origin === "RAZORPAY" ? "live" : item.signatureVerified ? "signed" : ""}`}
-              >
-                <span className={`badge ${item.origin === "RAZORPAY" ? "go" : ""}`}>
-                  {item.origin === "RAZORPAY"
-                    ? "Razorpay signed"
-                    : item.origin === "LOCAL_SCRIPT"
-                      ? "Signed locally"
-                      : "Opened here"}
-                </span>
-                <div>
-                  <strong>{item.eventType.replaceAll(".", " ")}</strong>
-                  <p>{item.reason ? item.reason.replaceAll("_", " ") : "Payment event"}</p>
-                  <span className="muted">
-                    {item.signatureVerified ? "Signature verified" : "Opened from this desk"}
-                    {item.processed ? " · ingested" : " · waiting"}
-                  </span>
-                </div>
-              </article>
-            ))}
-          </section>
-        ) : null}
-
-        <section>
-          <div className="create-grid">
-            {scenarios.map((scenario) => (
-              <button
-                key={scenario.slug}
-                className="issue-btn"
-                disabled={busy !== null}
-                onClick={() =>
-                  run(scenario.slug, async () => {
-                    runToken.current += 1;
-                    setPhase("idle");
-                    setRunningStep(null);
-                    setLog([]);
-                    setOutcomeNow(null);
-                    setWaitClock(null);
-                    setTicker("Case created. Ask the agent, or start recovery.");
-                    setWhatNow("Case is ready.");
-                    setWhyNow("The agent proposes. Start is what actually runs the playbook.");
-                    setProposal(null);
-                    const created = await createIssue(scenario.slug);
-                    await refresh(created.caseId);
-                    await loadBriefing();
-                    await loadInbox();
-                  })
-                }
-              >
-                {scenario.reason}
-                <small>{scenario.intendedAction}</small>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <div className="desk-split">
-          <section className="panel">
-            <div className="panel-head">
-              <h2>Open issues</h2>
-              <span className="muted">
+      <div className="desk-shell">
+        <aside className="desk-list">
+          <div className="desk-list-head">
+            <div>
+              <p className="pill">Open cases</p>
+              <strong>
                 {cases.length} {cases.length === 1 ? "case" : "cases"}
-              </span>
+              </strong>
             </div>
-            {cases.length === 0 ? (
-              <p className="empty">No open cases yet. Create one above.</p>
-            ) : (
+            <span className="muted">{inr(atRisk)} at risk</span>
+          </div>
+
+          {cases.length === 0 ? (
+            <p className="empty">Nothing open. A failed payment will land here.</p>
+          ) : (
+            <>
+              <div className="desk-cols">
+                <span>Failure</span>
+                <span>Status</span>
+                <span>Amount</span>
+              </div>
               <div className="rows">
                 {cases.map((row) => (
                   <button
                     key={row.caseId}
-                    className={row.caseId === selectedId ? "case-row active" : "case-row"}
+                    type="button"
+                    className={row.caseId === selectedId ? "desk-row active" : "desk-row"}
                     onClick={() =>
                       run("open", async () => {
-                        runToken.current += 1;
-                        setPhase("idle");
-                        setRunningStep(null);
-                        setLog([]);
-                        setOutcomeNow(null);
-                        setWaitClock(null);
-                        setTicker("Case selected. Ask the agent, or start recovery.");
-                        setWhatNow("Ready to run.");
-                        setWhyNow("The agent proposes. Start is what actually runs the playbook.");
+                        resetRun();
                         const opened = await getCase(row.caseId);
                         setProposal(proposalFromAudit(opened));
                         setSelectedId(row.caseId);
@@ -665,210 +325,127 @@ export function RecoveryDesk() {
                       })
                     }
                   >
-                    <span className={scoreClass(row.recoveryProbability)}>{scoreLabel(row)}</span>
-                    <span>
-                      <span className="reason">{row.reason}</span>
-                      <span className="muted">
-                        {row.status} · {row.source}
-                      </span>
-                      <span className="steps">
-                        {row.playbook.slice(0, 4).map((step) => (
-                          <span key={step.step} className="chip">
-                            {step.step}. {step.actionType.split("_").join(" ")}
-                          </span>
-                        ))}
-                      </span>
-                    </span>
-                    <span>{inr(row.amountAtRisk)}</span>
-                    <span className="muted">{row.actionStatus ?? "—"}</span>
+                    <span className="reason">{prettyWords(row.reason)}</span>
+                    <span className="muted">{statusLabel(row.status)}</span>
+                    <span className="desk-amt">{inr(row.amountAtRisk)}</span>
                   </button>
                 ))}
               </div>
-            )}
-          </section>
+            </>
+          )}
 
-          <aside className="panel">
-            <div className="panel-head">
-              <h2>Live process</h2>
-              <span className="muted">{detail ? progressLabel(detail) : "—"}</span>
-            </div>
-            {!detail ? (
-              <p className="empty">Select a case to start recovery.</p>
-            ) : (
-              <div className="detail">
-                <div className="pipeline">
-                  <div className={`phase ${phaseState(phase, "detect")}`}>
-                    Detect
-                    <strong>Case open</strong>
-                  </div>
-                  <div className={`phase ${phaseState(phase, "score")}`}>
-                    Score
-                    <strong>P(recovery)</strong>
-                  </div>
-                  <div className={`phase ${phaseState(phase, "act")}`}>
-                    Act
-                    <strong>Playbook</strong>
-                  </div>
-                  <div className={`phase ${phaseState(phase, "done")}`}>
-                    Done
-                    <strong>Audit</strong>
-                  </div>
+          {scenarios.length > 0 ? (
+            <form
+              className="desk-new"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!newSlug) {
+                  return;
+                }
+                void run("new", async () => {
+                  resetRun();
+                  setProposal(null);
+                  const created = await createIssue(newSlug);
+                  await refresh(created.caseId);
+                });
+              }}
+            >
+              <label>
+                <span className="pill">Open a failed payment</span>
+                <select
+                  value={newSlug}
+                  disabled={busy !== null}
+                  onChange={(event) => setNewSlug(event.target.value)}
+                >
+                  {scenarios.map((scenario) => (
+                    <option key={scenario.slug} value={scenario.slug}>
+                      {prettyWords(scenario.reason)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="ghost-btn" type="submit" disabled={busy !== null || !newSlug}>
+                {busy === "new" ? "Opening…" : "Open"}
+              </button>
+            </form>
+          ) : null}
+        </aside>
+
+        <article className="desk-pack">
+          {!detail ? (
+            <p className="empty">Select a case to see what to do.</p>
+          ) : (
+            <>
+              <header className="desk-pack-head">
+                <div>
+                  <p className="pill">This case</p>
+                  <h2>{prettyWords(detail.reason)}</h2>
+                  <p className="muted">{reasonBlurb(detail.reason)}</p>
                 </div>
-
-                <div className="live-bar">
-                  <div style={{ flex: 1 }}>
-                    <div className="ticker">{ticker}</div>
-                    <div className="meter">
-                      <span style={{ width: `${phase === "done" ? 100 : meterPct}%` }} />
-                    </div>
-                  </div>
-                  <span className="muted" style={{ whiteSpace: "nowrap" }}>
-                    {doneCount}/{total || "—"}
-                  </span>
-                </div>
-
-                {waitClock ? (
-                  <div className="wait-card">
-                    <div>
-                      <p className="pill" style={{ color: "var(--navy)" }}>
-                        Waiting for the next window
-                      </p>
-                      <strong className="display" style={{ fontSize: "1.35rem" }}>
-                        {waitClock}
-                      </strong>
-                      <span className="muted">Wait shortened so the next step can run.</span>
-                    </div>
-                    <div className="wait-ring" style={{ ["--p" as string]: `${waitPct}%` }}>
-                      <span>{waitPct}%</span>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="action-row">
-                  <button
-                    className="ghost-btn ask-btn"
-                    disabled={!canAsk}
-                    onClick={() => void askAgent()}
-                  >
-                    {busy === "agent" ? "Asking agent…" : "Ask agent"}
-                  </button>
+                <div className="desk-pack-actions">
+                  <strong className="approval-amount">{inr(detail.amountAtRisk)}</strong>
                   <button
                     className={busy === "live" ? "start-btn running" : "start-btn"}
+                    type="button"
                     disabled={!canStart}
                     onClick={() => void startLiveProcess()}
                   >
                     {busy === "live"
-                      ? "Running recovery…"
+                      ? "Running…"
                       : detail.status === "RECOVERED"
-                        ? "Process finished"
-                        : "Start recovery process"}
+                        ? "Recovered"
+                        : held
+                          ? "Waiting for review"
+                          : "Start recovery"}
                   </button>
                 </div>
+              </header>
 
-                <div className="explain">
-                  <div>
-                    <p className="pill" style={{ color: "var(--navy)" }}>
-                      What is happening
-                    </p>
-                    <p>{whatNow}</p>
-                  </div>
-                  <div>
-                    <p className="pill" style={{ color: "var(--navy)" }}>
-                      Why
-                    </p>
-                    <p>{whyNow}</p>
-                  </div>
-                  {outcomeNow ? (
-                    <div className={`outcome ${outcomeNow.tone}`}>
-                      <p className="pill">Outcome</p>
-                      <strong>{outcomeNow.label}</strong>
-                      <p>{outcomeNow.detail}</p>
-                    </div>
-                  ) : null}
+              <dl className="desk-facts">
+                <div>
+                  <dt>Status</dt>
+                  <dd>{held ? "Waiting for review" : statusLabel(detail.status)}</dd>
                 </div>
-
-                <div className={`score-card ${scorePop || phase === "score" ? "highlight" : ""}`}>
-                  <div className="big">{pct(detail.score?.recoveryProbability ?? detail.recoveryProbability)}</div>
-                  <div>
-                    <strong>{detail.reason}</strong>
-                    <p className="muted" style={{ color: "#c9d4e3" }}>
-                      P(recovery) = will this customer likely pay eventually?
-                    </p>
-                    <p className="muted" style={{ color: "#c9d4e3" }}>
-                      {inr(detail.amountAtRisk)} · {detail.caseId}
-                    </p>
-                  </div>
+                <div>
+                  <dt>Chance they pay</dt>
+                  <dd>{chanceLabel(detail.score?.recoveryProbability ?? detail.recoveryProbability, detail.score?.status ?? detail.scoreStatus)}</dd>
                 </div>
+                <div>
+                  <dt>Next step</dt>
+                  <dd>{detail.status === "RECOVERED" ? "None" : recommended}</dd>
+                </div>
+                <div>
+                  <dt>Progress</dt>
+                  <dd>{total === 0 ? "No plan yet" : `${doneCount} of ${total} steps`}</dd>
+                </div>
+              </dl>
 
-                {detail.policy ? (
-                  <div className={`policy-card ${detail.policy.verdict.toLowerCase()}`}>
-                    <p className="pill" style={{ color: "var(--navy)" }}>
-                      Policy
-                    </p>
-                    <strong>
-                      {detail.policy.reason === "HUMAN_OVERRIDE"
-                        ? "Signed off — recovery can continue"
-                        : detail.policy.verdict === "BLOCK"
-                          ? "Held — waiting for the other person"
-                          : detail.policy.verdict === "SKIP_RETRY"
-                            ? "Skipped extra retries — playbook may continue"
-                            : "Allowed — playbook can run"}
-                    </strong>
-                    <p>
-                      {actionWords(detail.policy.recommendedAction || "DELAYED_RETRY")} · {detail.policy.reason}
-                      {detail.policy.escalate ? " · escalate" : ""}
-                    </p>
-                  </div>
-                ) : null}
+              {detail.policy ? (
+                <p className={`desk-note ${held ? "hold" : ""}`}>{policyBanner(detail.policy.reason, detail.policy.verdict)}</p>
+              ) : null}
 
-                {proposal ? (
-                  <div className="agent-card">
-                    <div className="panel-head" style={{ padding: 0, border: 0 }}>
-                      <h3 className="display" style={{ margin: 0, fontSize: "1.05rem" }}>
-                        Agent proposal
-                      </h3>
-                      <span className={proposal.deviatesFromPlaybook ? "badge deviate" : "badge agree"}>
-                        {proposal.deviatesFromPlaybook ? "Deviates" : "Agrees with playbook"}
-                      </span>
-                    </div>
-                    <p className="pill" style={{ color: "var(--navy)" }}>
-                      {proposal.diagnosis.replaceAll("_", " ")}
-                    </p>
-                    <p>{proposal.reasoning}</p>
-                    <dl className="agent-compare">
-                      <div>
-                        <dt>Recommended</dt>
-                        <dd>{actionWords(proposal.recommendedAction)}</dd>
-                      </div>
-                      <div>
-                        <dt>Playbook default</dt>
-                        <dd>{actionWords(proposal.defaultPlaybookAction)}</dd>
-                      </div>
-                      <div>
-                        <dt>Confidence · P(recovery)</dt>
-                        <dd>
-                          {pct(proposal.confidence)} · {pct(proposal.mlScore)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Escalate</dt>
-                        <dd>{proposal.escalate ? "Yes — human" : "No"}</dd>
-                      </div>
-                    </dl>
-                    <div className="safety-chips">
-                      <span className="chip">Proposes only</span>
-                      <span className="chip">Cannot charge</span>
-                      {proposal.fallbackUsed ? <span className="chip warn">Using fallback rules</span> : null}
-                    </div>
+              {proposal && !held && detail.status !== "RECOVERED" ? (
+                <p className="desk-note">{proposal.reasoning}</p>
+              ) : null}
+
+              {busy === "live" || waitClock || outcomeNow ? (
+                <section className="desk-now">
+                  <div>
+                    <p className="pill">Now</p>
+                    <strong>{ticker}</strong>
+                    {outcomeNow ? <p className={`outcome-line ${outcomeNow.tone}`}>{outcomeNow.detail}</p> : null}
                   </div>
+                  <div className="meter">
+                    <span style={{ width: `${waitClock ? waitPct : meterPct}%` }} />
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="desk-plan">
+                <p className="pill">Plan</p>
+                {(detail.playbook ?? []).length === 0 ? (
+                  <p className="muted">No recovery plan for this failure yet.</p>
                 ) : (
-                  <p className="muted">Ask the agent for a diagnosis. It cannot charge — Start is what runs the playbook.</p>
-                )}
-
-                <div className="playbook">
-                  <h3 className="display" style={{ margin: "0 0 0.6rem", fontSize: "1.05rem" }}>
-                    Playbook progress
-                  </h3>
                   <ol>
                     {(detail.playbook ?? []).map((step) => {
                       const state = stepState(detail, step.step, runningStep);
@@ -877,58 +454,89 @@ export function RecoveryDesk() {
                         <li key={step.step} className={state}>
                           <span className="n">{step.step}</span>
                           <div>
-                            <strong>{step.actionType.split("_").join(" ")}</strong>
+                            <strong>{actionLabel(step.actionType)}</strong>
                             <span className="muted">{step.note}</span>
-                            {finished ? (
-                              <span className="muted">Result: {finished.status}</span>
-                            ) : null}
                           </div>
                           <span className="badge">
-                            {state === "running" ? "now" : state === "done" ? "done" : "wait"}
+                            {state === "running" ? "Now" : state === "done" ? stepResult(finished?.status ?? "EXECUTED") : "Next"}
                           </span>
                         </li>
                       );
                     })}
                   </ol>
-                </div>
+                )}
+              </section>
 
-                <div className="story">
-                  <strong>Story log</strong>
-                  {log.length === 0 ? (
-                    <span className="muted">Events appear here as recovery runs.</span>
-                  ) : (
-                    log.map((line) => (
-                      <div key={line.id} className={`story-line ${line.tone}`}>
-                        <span>{line.clock}</span>
-                        <div>
-                          <strong>{line.title}</strong>
-                          <p>{line.body}</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="audit">
-                  <strong>Audit so far</strong>
-                  {(detail.audit ?? []).length === 0 ? (
-                    <span className="muted">No events yet. Asking the agent writes a proposal; policy then allows, skips, or holds.</span>
-                  ) : (
-                    [...detail.audit].reverse().map((line) => (
-                      <div key={line.eventId} className={`audit-line ${line.eventType.startsWith("POLICY_") ? "policy" : ""}`}>
-                        <span>
-                          {line.eventType} · {line.action}
-                        </span>
-                        {auditDetail(line) ? <span className="muted">{auditDetail(line)}</span> : null}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </aside>
-        </div>
+              <section className="desk-activity">
+                <p className="pill">What happened</p>
+                {activity.length === 0 ? (
+                  <span className="muted">Nothing yet. Start recovery to run the plan.</span>
+                ) : (
+                  activity.map((line) => (
+                    <div key={line.id} className="desk-activity-line">
+                      <strong>{line.title}</strong>
+                      {line.body ? <span className="muted">{line.body}</span> : null}
+                    </div>
+                  ))
+                )}
+              </section>
+            </>
+          )}
+        </article>
       </div>
     </div>
   );
+}
+
+function proposalFromAudit(detail: CaseDetail | null): CaseProposal | null {
+  const line = [...(detail?.audit ?? [])].reverse().find((item) => item.eventType === "AGENT_PROPOSE");
+  const raw = line?.details;
+  if (!raw || typeof raw.recommendedAction !== "string") {
+    return null;
+  }
+  return {
+    caseId: typeof raw.caseId === "string" ? raw.caseId : detail?.caseId ?? null,
+    diagnosis: String(raw.diagnosis ?? "UNKNOWN_FAILURE"),
+    reasoning: String(raw.reasoning ?? raw.reason ?? ""),
+    recommendedAction: String(raw.recommendedAction),
+    defaultPlaybookAction: String(raw.defaultPlaybookAction ?? ""),
+    deviatesFromPlaybook: Boolean(raw.deviatesFromPlaybook),
+    confidence: Number(raw.confidence ?? 0),
+    mlScore: raw.mlScore == null ? null : Number(raw.mlScore),
+    escalate: Boolean(raw.escalate),
+    actionsAvailable: Array.isArray(raw.actionsAvailable) ? raw.actionsAvailable.map(String) : ["propose"],
+    executes: false,
+    model: String(raw.model ?? "fallback-rules"),
+    fallbackUsed: Boolean(raw.fallbackUsed),
+  };
+}
+
+function humanAuditBody(line: { eventType: string; details: Record<string, unknown> | null }) {
+  const details = line.details;
+  if (!details) {
+    return "";
+  }
+  if (typeof details.note === "string" && details.note.trim()) {
+    return details.note;
+  }
+  if (typeof details.reasoning === "string" && details.reasoning.trim()) {
+    return details.reasoning;
+  }
+  if (typeof details.recommendedAction === "string") {
+    return actionLabel(details.recommendedAction);
+  }
+  if (typeof details.reason === "string") {
+    return prettyWords(details.reason);
+  }
+  return "";
+}
+
+function stepState(detail: CaseDetail, step: number, runningStep: number | null) {
+  if (runningStep === step) {
+    return "running";
+  }
+  if (completedSteps(detail).has(step)) {
+    return "done";
+  }
+  return "pending";
 }

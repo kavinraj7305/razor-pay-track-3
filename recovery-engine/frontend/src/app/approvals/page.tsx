@@ -15,7 +15,7 @@ const PROCESS = [
 
 export default function ApprovalsPage() {
   return (
-    <RoleGate allow={["APPROVER", "ADMIN"]}>
+    <RoleGate allow={["APPROVER"]}>
       <DeskChrome
         kicker="Human in the loop"
         title="Policy queue"

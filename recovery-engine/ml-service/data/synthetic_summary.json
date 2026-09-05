@@ -1,9 +1,9 @@
 {
   "n_events": 500,
   "n_customers": 500,
-  "paid_eventually_rate": 0.402,
-  "amount_at_risk_inr": 2759313.04,
-  "amount_recovered_inr": 556179.2,
+  "paid_eventually_rate": 0.408,
+  "amount_at_risk_inr": 2768442.88,
+  "amount_recovered_inr": 599798.74,
   "risk_80k_count": 12,
   "by_workflow": {
     "checkout_abandon": 100,
@@ -14,8 +14,8 @@
       "reason": "captured",
       "n": 37,
       "paid": 37,
-      "amount_at_risk_inr": 37422.68,
-      "amount_recovered_inr": 37422.68,
+      "amount_at_risk_inr": 38473.14,
+      "amount_recovered_inr": 38473.14,
       "paid_rate": 1.0
     },
     {
@@ -29,10 +29,10 @@
     {
       "reason": "checkout.abandoned",
       "n": 100,
-      "paid": 30,
-      "amount_at_risk_inr": 147972.89,
-      "amount_recovered_inr": 52549.21,
-      "paid_rate": 0.3
+      "paid": 31,
+      "amount_at_risk_inr": 146749.02,
+      "amount_recovered_inr": 54813.73,
+      "paid_rate": 0.31
     },
     {
       "reason": "insufficient_funds",
@@ -45,10 +45,10 @@
     {
       "reason": "invoice.expired",
       "n": 50,
-      "paid": 15,
-      "amount_at_risk_inr": 711266.73,
-      "amount_recovered_inr": 235625.41,
-      "paid_rate": 0.3
+      "paid": 17,
+      "amount_at_risk_inr": 720879.04,
+      "amount_recovered_inr": 272766.9,
+      "paid_rate": 0.34
     },
     {
       "reason": "payment_risk_check_failed",
@@ -62,16 +62,16 @@
       "reason": "subscription.halted",
       "n": 50,
       "paid": 10,
-      "amount_at_risk_inr": 113339.95,
-      "amount_recovered_inr": 17932.74,
+      "amount_at_risk_inr": 113825.27,
+      "amount_recovered_inr": 21592.93,
       "paid_rate": 0.2
     },
     {
       "reason": "subscription.pending",
       "n": 63,
       "paid": 30,
-      "amount_at_risk_inr": 74262.89,
-      "amount_recovered_inr": 33191.39,
+      "amount_at_risk_inr": 73468.51,
+      "amount_recovered_inr": 32694.27,
       "paid_rate": 0.4762
     }
   ],
@@ -83,8 +83,8 @@
   },
   "postgres": {
     "cases": 500,
-    "paid": 201,
+    "paid": 204,
     "customers": 500,
-    "payments": 11346
+    "payments": 12571
   }
 }

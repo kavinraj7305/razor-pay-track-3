@@ -56,6 +56,9 @@ public class MlDataGate {
 			return new ScorePeek("LOW_DATA", labelled, min, null, false, null);
 		}
 		PredictPayload features = customerFeatureService.snapshot(recoveryCase);
+		if (!enoughPersonalHistory(features)) {
+			return new ScorePeek("LOW_DATA", labelled, min, null, false, null);
+		}
 		Optional<PredictApiResponse> scored = mlPredictClient.predict(features);
 		if (scored.isEmpty()) {
 			return new ScorePeek("UNAVAILABLE", labelled, min, null, false, null);
@@ -83,6 +86,18 @@ public class MlDataGate {
 			return new Decision(false, labelled, null, false);
 		}
 		PredictPayload features = customerFeatureService.snapshot(recoveryCase);
+		if (!enoughPersonalHistory(features)) {
+			audit(
+					recoveryCase,
+					"ML_SKIPPED_LOW_DATA",
+					"PLAYBOOK_ONLY",
+					Map.of(
+							"labelledOutcomes", labelled,
+							"minLabelledOutcomes", min,
+							"historyPaymentCount", features.historyPaymentCount(),
+							"minHistoryPaymentsToScore", properties.getMinHistoryPaymentsToScore()));
+			return new Decision(false, labelled, null, false);
+		}
 		Optional<PredictApiResponse> scored = mlPredictClient.predict(features);
 		if (scored.isEmpty()) {
 			audit(
@@ -109,6 +124,10 @@ public class MlDataGate {
 			cancelPlannedRetry(recoveryCase, probability);
 		}
 		return new Decision(true, labelled, probability, skipRetry);
+	}
+
+	private boolean enoughPersonalHistory(PredictPayload features) {
+		return features.historyPaymentCount() >= properties.getMinHistoryPaymentsToScore();
 	}
 
 	private boolean shouldSkipRetry(PredictPayload features, double probability) {

@@ -8,7 +8,7 @@ import { getSession, homeFor, roleLabel, setSession, type DeskRole, type Session
 
 const LINKS: { href: string; label: string; roles: DeskRole[] }[] = [
   { href: "/dashboard", label: "CEO dashboard", roles: ["ADMIN"] },
-  { href: "/approvals", label: "Policy queue", roles: ["ADMIN", "APPROVER"] },
+  { href: "/approvals", label: "Policy queue", roles: ["APPROVER"] },
   { href: "/desk", label: "Recovery desk", roles: ["ADMIN"] },
 ];
 

@@ -148,7 +148,7 @@ def make_customers(rng: np.random.Generator, n_events: int) -> pd.DataFrame:
     n = n_events
     rows = []
     for i in range(1, n + 1):
-        prior_payments = int(rng.integers(5, 40))
+        prior_payments = int(rng.integers(10, 40))
         success_rate = float(np.clip(rng.beta(5, 3), 0.15, 0.95))
         prior_success = int(round(prior_payments * success_rate))
         prior_failure = prior_payments - prior_success
