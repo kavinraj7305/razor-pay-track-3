@@ -14,8 +14,11 @@ import com.razorpayhackthon.revenue_recovery.repository.AuditEventRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryActionRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryCaseRepository;
 import com.razorpayhackthon.revenue_recovery.service.ml.MlDataGate;
+import com.razorpayhackthon.revenue_recovery.service.plan.handler.PlaybookRunner;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,18 +34,27 @@ public class RecoveryActionPlanService {
 	private final AuditEventRepository auditEventRepository;
 	private final BaselineActionPlanner baselineActionPlanner;
 	private final MlDataGate mlDataGate;
+	private final PolicyEngine policyEngine;
+	private final PlaybookRunner playbookRunner;
+	private final AuditWriter auditWriter;
 
 	public RecoveryActionPlanService(
 			RecoveryCaseRepository recoveryCaseRepository,
 			RecoveryActionRepository recoveryActionRepository,
 			AuditEventRepository auditEventRepository,
 			BaselineActionPlanner baselineActionPlanner,
-			MlDataGate mlDataGate) {
+			MlDataGate mlDataGate,
+			PolicyEngine policyEngine,
+			PlaybookRunner playbookRunner,
+			AuditWriter auditWriter) {
 		this.recoveryCaseRepository = recoveryCaseRepository;
 		this.recoveryActionRepository = recoveryActionRepository;
 		this.auditEventRepository = auditEventRepository;
 		this.baselineActionPlanner = baselineActionPlanner;
 		this.mlDataGate = mlDataGate;
+		this.policyEngine = policyEngine;
+		this.playbookRunner = playbookRunner;
+		this.auditWriter = auditWriter;
 	}
 
 	@Transactional(readOnly = true)
@@ -72,10 +84,39 @@ public class RecoveryActionPlanService {
 	public RecoveryCasePlanResponse executeNext(String caseId) {
 		RecoveryCase recoveryCase = requireOpen(caseId);
 		baselineActionPlanner.planFor(recoveryCase);
-		MlDataGate.Decision gate = mlDataGate.beforeExecute(recoveryCase);
-		if (!gate.skipRetry()) {
-			baselineActionPlanner.pick(recoveryCase).executeNext(recoveryCase);
+		PolicyDecision policy = policyEngine.apply(recoveryCase);
+		if (policy.blocked()) {
+			return getPlan(caseId);
 		}
+		MlDataGate.Decision gate = mlDataGate.beforeExecute(recoveryCase);
+		if (policy.skipRetry() || gate.skipRetry()) {
+			playbookRunner.skipUpcomingRetries(
+					recoveryCase,
+					playbookFor(recoveryCase),
+					policy.skipRetry()
+							? "Policy skip extra retry: " + policy.recommendedAction()
+							: "ML skip extra retry");
+		}
+		try {
+			baselineActionPlanner.pick(recoveryCase).executeNext(recoveryCase);
+		} catch (ResponseStatusException ex) {
+			if (ex.getStatusCode() != HttpStatus.CONFLICT) {
+				throw ex;
+			}
+		}
+		return getPlan(caseId);
+	}
+
+	@Transactional
+	public RecoveryCasePlanResponse recordAgentProposal(String caseId, Map<String, Object> agentProposal) {
+		RecoveryCase recoveryCase = requireCase(caseId);
+		auditWriter.write(
+				recoveryCase,
+				PolicyEngine.AGENT_PROPOSE,
+				"PROPOSE",
+				"DESK",
+				"agent-service",
+				new LinkedHashMap<>(agentProposal == null ? Map.of() : agentProposal));
 		return getPlan(caseId);
 	}
 
@@ -141,7 +182,8 @@ public class RecoveryActionPlanService {
 				planned,
 				audit.stream().map(this::toAudit).toList(),
 				playbookFor(recoveryCase),
-				mlDataGate.peek(recoveryCase));
+				mlDataGate.peek(recoveryCase),
+				policyEngine.peek(recoveryCase));
 	}
 
 	private List<PlaybookStepPreview> playbookFor(RecoveryCase recoveryCase) {

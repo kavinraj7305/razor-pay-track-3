@@ -22,7 +22,8 @@ public record RecoveryCasePlanResponse(
 		List<PlannedAction> actions,
 		List<AuditLine> audit,
 		List<PlaybookStepPreview> playbook,
-		ScorePeek score) {
+		ScorePeek score,
+		PolicyPeek policy) {
 
 	public record PlannedAction(
 			String actionId,

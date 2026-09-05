@@ -1,5 +1,6 @@
 package com.razorpayhackthon.revenue_recovery.service.plan.handler;
 
+import com.razorpayhackthon.revenue_recovery.dto.PlaybookStepPreview;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryAction;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionStatus;
@@ -50,7 +51,29 @@ public class PlaybookRunner {
 		return next;
 	}
 
-	private int nextStepNumber(RecoveryCase recoveryCase) {
+	/** Mark upcoming silent retries as done-cancelled so the playbook can advance to a pay-link / SMS. */
+	public int skipUpcomingRetries(RecoveryCase recoveryCase, List<PlaybookStepPreview> playbook, String why) {
+		int last = playbook.stream().mapToInt(PlaybookStepPreview::step).max().orElse(0);
+		int skipped = 0;
+		while (true) {
+			int next = nextStepNumber(recoveryCase);
+			if (next > last) {
+				return skipped;
+			}
+			int stepNumber = next;
+			PlaybookStepPreview preview = playbook.stream()
+					.filter(candidate -> candidate.step() == stepNumber)
+					.findFirst()
+					.orElse(null);
+			if (preview == null || !"RETRY_PAYMENT".equals(preview.actionType())) {
+				return skipped;
+			}
+			skipRetryStep(recoveryCase, preview, why);
+			skipped++;
+		}
+	}
+
+	public int nextStepNumber(RecoveryCase recoveryCase) {
 		return recoveryActionRepository.findByRecoveryCase_CaseId(recoveryCase.getCaseId()).stream()
 						.filter(this::countsAsDone)
 						.mapToInt(action -> action.getAttemptNumber() == null ? 0 : action.getAttemptNumber())
@@ -73,8 +96,7 @@ public class PlaybookRunner {
 		for (RecoveryAction action : existing) {
 			if (action.getAttemptNumber() != null
 					&& action.getAttemptNumber() == step.stepNumber()
-					&& (action.getStatus() == RecoveryActionStatus.PLANNED
-							|| action.getStatus() == RecoveryActionStatus.CANCELLED)) {
+					&& action.getStatus() == RecoveryActionStatus.PLANNED) {
 				return action;
 			}
 		}
@@ -86,5 +108,26 @@ public class PlaybookRunner {
 		action.setAttemptNumber(step.stepNumber());
 		action.setReason(step.planNote());
 		return recoveryActionRepository.save(action);
+	}
+
+	private void skipRetryStep(RecoveryCase recoveryCase, PlaybookStepPreview preview, String why) {
+		RecoveryAction action = recoveryActionRepository.findByRecoveryCase_CaseId(recoveryCase.getCaseId()).stream()
+				.filter(existing -> existing.getAttemptNumber() != null
+						&& existing.getAttemptNumber() == preview.step()
+						&& existing.getStatus() == RecoveryActionStatus.PLANNED)
+				.findFirst()
+				.orElseGet(() -> {
+					RecoveryAction created = new RecoveryAction();
+					created.setActionId("act_" + UUID.randomUUID().toString().replace("-", ""));
+					created.setRecoveryCase(recoveryCase);
+					created.setActionType(RecoveryActionType.RETRY_PAYMENT);
+					created.setAttemptNumber(preview.step());
+					created.setReason(preview.note());
+					return created;
+				});
+		action.setStatus(RecoveryActionStatus.CANCELLED);
+		action.setExecutedAt(LocalDateTime.now());
+		action.setReason(why);
+		recoveryActionRepository.save(action);
 	}
 }

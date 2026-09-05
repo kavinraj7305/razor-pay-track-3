@@ -14,8 +14,8 @@ const sans = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Recovery desk",
-  description: "Create issues, see the playbook, read P(recovery) before the agent.",
+  title: "Recovery workspace",
+  description: "CEO dashboard, policy guard queue, and operator desk.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

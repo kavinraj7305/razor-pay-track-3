@@ -1,12 +1,105 @@
-import type { CaseDetail, CaseProposal, CaseSummary, OpsBriefing, Scenario, SimulateResult } from "./types";
+import { getSession, setSession } from "./session";
+import type {
+  ApprovalItem,
+  CaseDetail,
+  CaseProposal,
+  CaseSummary,
+  DashboardSnapshot,
+  DemoAccount,
+  DeskRole,
+  OpsBriefing,
+  Scenario,
+  Session,
+  SimulateResult,
+  UserRow,
+} from "./types";
+
+function authHeaders(): HeadersInit {
+  const session = getSession();
+  return session?.token ? { Authorization: `Bearer ${session.token}` } : {};
+}
 
 async function readJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, { cache: "no-store", ...init });
+  const headers = new Headers(init?.headers);
+  const extra = authHeaders();
+  Object.entries(extra).forEach(([key, value]) => headers.set(key, value));
+  const response = await fetch(path, { cache: "no-store", ...init, headers });
+  if (response.status === 401 && !path.startsWith("/api/auth/login")) {
+    setSession(null);
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.replace("/login");
+    }
+  }
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || `${response.status} ${path}`);
   }
   return response.json() as Promise<T>;
+}
+
+export function listDemoAccounts() {
+  return readJson<DemoAccount[]>("/api/auth/demo");
+}
+
+export function login(email: string, password: string) {
+  return readJson<Session>("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function logout() {
+  return readJson<Session>("/api/auth/logout", { method: "POST" });
+}
+
+export function me() {
+  return readJson<Session>("/api/auth/me");
+}
+
+export function adminDashboard() {
+  return readJson<DashboardSnapshot>("/api/admin/dashboard");
+}
+
+export function createDeskUser(payload: {
+  email: string;
+  displayName: string;
+  password: string;
+  role: DeskRole;
+}) {
+  return readJson<UserRow>("/api/admin/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function assignDeskRole(userId: string, role: DeskRole) {
+  return readJson<UserRow>(`/api/admin/users/${userId}/role`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role }),
+  });
+}
+
+export function pendingApprovals() {
+  return readJson<ApprovalItem[]>("/api/approvals/pending");
+}
+
+export function approveCase(caseId: string, note: string) {
+  return readJson<CaseDetail>(`/api/approvals/${caseId}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+}
+
+export function rejectCase(caseId: string, note: string) {
+  return readJson<CaseDetail>(`/api/approvals/${caseId}/reject`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
 }
 
 export function listScenarios() {
@@ -51,6 +144,15 @@ export function opsBriefing(windowHours = 6) {
   });
 }
 
+export function recordAgentProposal(caseId: string, proposal: CaseProposal) {
+  return readJson<CaseDetail>(`/api/recovery-cases/${caseId}/agent-proposal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(proposal),
+    signal: AbortSignal.timeout(60000),
+  });
+}
+
 export function inr(amount: number | null | undefined) {
   if (amount == null || Number.isNaN(Number(amount))) {
     return "—";
@@ -67,4 +169,19 @@ export function pct(value: number | null | undefined) {
     return "—";
   }
   return `${(value * 100).toFixed(0)}%`;
+}
+
+export function prettyError(err: unknown) {
+  if (!(err instanceof Error)) {
+    return "Request failed";
+  }
+  try {
+    const parsed = JSON.parse(err.message) as { error?: string };
+    if (parsed.error) {
+      return parsed.error;
+    }
+  } catch {
+    /* keep raw */
+  }
+  return err.message;
 }

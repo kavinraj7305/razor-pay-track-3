@@ -1,7 +1,9 @@
 package com.razorpayhackthon.revenue_recovery.controller;
 
+import com.razorpayhackthon.revenue_recovery.auth.RequireRole;
 import com.razorpayhackthon.revenue_recovery.dto.ScenarioCatalogItem;
 import com.razorpayhackthon.revenue_recovery.dto.SimulatedFailureResult;
+import com.razorpayhackthon.revenue_recovery.enums.DeskRole;
 import com.razorpayhackthon.revenue_recovery.service.webhook.WebhookSimulateService;
 import java.util.List;
 import org.springframework.http.MediaType;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequireRole({DeskRole.OPERATOR, DeskRole.ADMIN})
 public class WebhookSimulateController {
 
 	private final WebhookSimulateService webhookSimulateService;

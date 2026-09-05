@@ -70,6 +70,8 @@ button {
   padding: 1.25rem 1.5rem 2.5rem;
   display: grid;
   gap: 1.1rem;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .create-grid {
@@ -641,8 +643,47 @@ button {
   font-size: 0.82rem;
   display: grid;
   gap: 0.4rem;
-  max-height: 160px;
+  max-height: 220px;
   overflow: auto;
+}
+
+.audit-line {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.35rem 0.4rem;
+  background: #faf6ee;
+  border-left: 3px solid var(--line);
+}
+
+.audit-line.policy {
+  border-left-color: var(--gold);
+  background: #fff8e8;
+}
+
+.policy-card {
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 0.75rem 0.9rem;
+}
+
+.policy-card p {
+  margin: 0.2rem 0 0;
+  font-size: 0.88rem;
+}
+
+.policy-card.block {
+  border-color: #e3b4b4;
+  background: #fdf4f4;
+}
+
+.policy-card.skip_retry {
+  border-color: #e3d3a4;
+  background: #fff8e8;
+}
+
+.policy-card.allow {
+  border-color: #9fcbb3;
+  background: #eef7f1;
 }
 
 .err {
@@ -665,6 +706,318 @@ button {
   50% {
     box-shadow: 0 0 0 4px rgba(201, 162, 39, 0.12);
   }
+}
+
+.role-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.7rem 1.5rem;
+  background: #0d1828;
+  color: #f6efe2;
+}
+
+.role-who strong,
+.role-who p {
+  margin: 0;
+}
+
+.role-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.role-link {
+  color: #c9d4e3;
+  text-decoration: none;
+  border: 1px solid transparent;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.85rem;
+}
+
+.role-link.active,
+.role-link:hover {
+  border-color: var(--gold);
+  color: #f6efe2;
+}
+
+.role-nav .ghost-btn {
+  background: transparent;
+  color: #f6efe2;
+  border-color: #3a4d66;
+  padding: 0.35rem 0.7rem;
+}
+
+.role-cards,
+.stat-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.role-cards {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.queue-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 6px 6px 0 rgba(19, 35, 58, 0.06);
+}
+
+.queue-strip strong {
+  display: block;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.45rem;
+  margin-top: 0.15rem;
+}
+
+.approval-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.approval-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 0.85fr);
+  gap: 1.25rem;
+  padding: 1.1rem 1.2rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 6px 6px 0 rgba(19, 35, 58, 0.06);
+  min-width: 0;
+}
+
+.approval-main,
+.approval-decide {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+  align-content: start;
+}
+
+.approval-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.55rem;
+  align-items: center;
+}
+
+.approval-title h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  text-transform: capitalize;
+  overflow-wrap: anywhere;
+}
+
+.approval-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.7rem;
+  align-items: center;
+}
+
+.approval-amount {
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.35rem;
+}
+
+.approval-id {
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: #f7f0e2;
+  border: 1px solid var(--line);
+  padding: 0.15rem 0.4rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.approval-facts {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.approval-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.approval-chips .chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.approval-note-text {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  max-height: 4.6rem;
+  overflow: auto;
+}
+
+.approval-decide label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.approval-decide textarea,
+.form-grid input,
+.form-grid select,
+.approval-card input {
+  width: 100%;
+  min-width: 0;
+}
+
+.approval-decide textarea {
+  font: inherit;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  resize: vertical;
+  min-height: 4.6rem;
+}
+
+.approval-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 0.5rem;
+}
+
+.approval-actions .start-btn,
+.approval-actions .ask-btn {
+  width: 100%;
+  padding: 0.8rem 0.65rem;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.approval-actions .start-btn {
+  border-width: 2px;
+}
+
+.empty-queue {
+  padding: 1.6rem 1.2rem;
+}
+
+.empty-queue h2 {
+  margin: 0.25rem 0 0.35rem;
+}
+
+.badge.block {
+  border-color: #e3b4b4;
+  color: var(--stop);
+  background: #f8e6e6;
+}
+
+@media (max-width: 860px) {
+  .approval-row,
+  .queue-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .queue-strip {
+    display: grid;
+    align-items: start;
+  }
+}
+
+.role-card,
+.stat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 1rem;
+  text-align: left;
+}
+
+.role-card {
+  cursor: pointer;
+}
+
+.role-card:hover {
+  border-color: var(--navy);
+}
+
+.stat strong,
+.role-card strong {
+  display: block;
+  font-size: 1.35rem;
+  font-family: var(--font-display), Georgia, serif;
+  margin: 0.25rem 0 0.15rem;
+}
+
+.login-form,
+.form-grid.pad,
+.approval-card .detail {
+  padding: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.form-grid label,
+.approval-card label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+input,
+select {
+  font: inherit;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+
+.user-row,
+.case-row.static {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid var(--line);
+  cursor: default;
+  width: 100%;
+  background: transparent;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 0;
+}
+
+.case-row.static:hover {
+  background: transparent;
+}
+
+.desk-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 @keyframes pop-score {

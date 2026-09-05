@@ -52,6 +52,15 @@ export type AuditLine = {
   createdAt: string | null;
 };
 
+export type PolicyPeek = {
+  verdict: "ALLOW" | "SKIP_RETRY" | "BLOCK" | string;
+  allowExecute: boolean;
+  skipRetry: boolean;
+  escalate: boolean;
+  recommendedAction: string;
+  reason: string;
+};
+
 export type CaseDetail = CaseSummary & {
   currency: string;
   priority: string;
@@ -63,6 +72,7 @@ export type CaseDetail = CaseSummary & {
   actions: PlannedAction[];
   audit: AuditLine[];
   score: ScorePeek | null;
+  policy: PolicyPeek | null;
 };
 
 export type CaseProposal = {
@@ -100,6 +110,64 @@ export type OpsBriefing = {
   executes: boolean;
   fallbackUsed: boolean;
   model: string;
+};
+
+export type DeskRole = "ADMIN" | "APPROVER" | "OPERATOR";
+
+export type Session = {
+  token: string | null;
+  userId: string | null;
+  email: string | null;
+  displayName: string | null;
+  role: DeskRole | null;
+};
+
+export type DemoAccount = {
+  email: string;
+  password: string;
+  role: DeskRole;
+  displayName: string;
+  sees: string;
+};
+
+export type UserRow = {
+  userId: string;
+  email: string;
+  displayName: string;
+  role: DeskRole;
+  active: boolean;
+  createdAt: string | null;
+};
+
+export type ReasonCount = {
+  reason: string;
+  count: number;
+};
+
+export type DashboardSnapshot = {
+  cases: number;
+  open: number;
+  recovered: number;
+  failed: number;
+  pendingApprovals: number;
+  amountAtRisk: number;
+  adminCount: number;
+  approverCount: number;
+  operatorCount: number;
+  byReason: ReasonCount[];
+  users: UserRow[];
+};
+
+export type ApprovalItem = {
+  caseId: string;
+  reason: string;
+  status: string;
+  amountAtRisk: number;
+  policyReason: string;
+  recommendedAction: string;
+  agentDiagnosis: string;
+  agentReasoning: string;
+  escalate: boolean;
 };
 
 export type SimulateResult = {
