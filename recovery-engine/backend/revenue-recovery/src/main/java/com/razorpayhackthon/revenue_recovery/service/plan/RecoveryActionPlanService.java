@@ -89,20 +89,21 @@ public class RecoveryActionPlanService {
 			return getPlan(caseId);
 		}
 		MlDataGate.Decision gate = mlDataGate.beforeExecute(recoveryCase);
-		if (policy.skipRetry() || gate.skipRetry()) {
-			playbookRunner.skipUpcomingRetries(
-					recoveryCase,
-					playbookFor(recoveryCase),
-					policy.skipRetry()
-							? "Policy skip extra retry: " + policy.recommendedAction()
-							: "ML skip extra retry");
-		}
 		try {
 			baselineActionPlanner.pick(recoveryCase).executeNext(recoveryCase);
 		} catch (ResponseStatusException ex) {
 			if (ex.getStatusCode() != HttpStatus.CONFLICT) {
 				throw ex;
 			}
+		}
+		if ((policy.skipRetry() || gate.skipRetry())
+				&& recoveryCase.getStatus() != RecoveryCaseStatus.RECOVERED) {
+			playbookRunner.skipUpcomingRetries(
+					recoveryCase,
+					playbookFor(recoveryCase),
+					policy.skipRetry()
+							? "After first retry · policy skip extra: " + policy.recommendedAction()
+							: "After first retry · low P(recovery) skip extra");
 		}
 		return getPlan(caseId);
 	}

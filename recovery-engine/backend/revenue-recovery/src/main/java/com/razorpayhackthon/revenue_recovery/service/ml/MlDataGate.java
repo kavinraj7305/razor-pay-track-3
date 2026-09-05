@@ -3,14 +3,10 @@ package com.razorpayhackthon.revenue_recovery.service.ml;
 import com.razorpayhackthon.revenue_recovery.config.MlProperties;
 import com.razorpayhackthon.revenue_recovery.dto.ScorePeek;
 import com.razorpayhackthon.revenue_recovery.entity.AuditEvent;
-import com.razorpayhackthon.revenue_recovery.entity.RecoveryAction;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
-import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionStatus;
-import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionType;
 import com.razorpayhackthon.revenue_recovery.repository.AuditEventRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryActionRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryOutcomeRepository;
-import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -120,9 +116,6 @@ public class MlDataGate {
 						"label", scored.get().label(),
 						"historyPaymentCount", features.historyPaymentCount(),
 						"skipRetry", skipRetry));
-		if (skipRetry) {
-			cancelPlannedRetry(recoveryCase, probability);
-		}
 		return new Decision(true, labelled, probability, skipRetry);
 	}
 
@@ -133,18 +126,6 @@ public class MlDataGate {
 	private boolean shouldSkipRetry(PredictPayload features, double probability) {
 		return probability < properties.getConsiderMinProbability()
 				&& features.historyPaymentCount() >= properties.getMinHistoryPaymentsToOverride();
-	}
-
-	private void cancelPlannedRetry(RecoveryCase recoveryCase, double probability) {
-		recoveryActionRepository.findByRecoveryCase_CaseId(recoveryCase.getCaseId()).stream()
-				.filter(action -> action.getActionType() == RecoveryActionType.RETRY_PAYMENT)
-				.filter(action -> action.getStatus() == RecoveryActionStatus.PLANNED)
-				.forEach(action -> {
-					action.setStatus(RecoveryActionStatus.CANCELLED);
-					action.setExecutedAt(LocalDateTime.now());
-					action.setReason("ML skip retry: P=" + probability);
-					recoveryActionRepository.save(action);
-				});
 	}
 
 	private void audit(RecoveryCase recoveryCase, String eventType, String action, Map<String, Object> details) {

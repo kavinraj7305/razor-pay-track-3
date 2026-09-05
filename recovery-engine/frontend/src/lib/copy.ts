@@ -104,6 +104,10 @@ export function explainStep(input: {
   actionNote: string | null;
   playbookNote: string;
   policyVerdict: string | null;
+  policyReason?: string | null;
+  recommendedAction?: string | null;
+  scoreStatus?: string | null;
+  mlScore?: number | null;
 }): { what: string; why: string | null; result: string } {
   const skipped = input.status === "CANCELLED";
   const failed = input.status === "FAILED";
@@ -129,29 +133,29 @@ function skipWhy(input: {
   step: number;
   actionNote: string | null;
   policyVerdict: string | null;
+  policyReason?: string | null;
+  recommendedAction?: string | null;
+  scoreStatus?: string | null;
+  mlScore?: number | null;
 }) {
   const note = (input.actionNote ?? "").toLowerCase();
-  const reason = input.failureReason.toLowerCase();
-  const ml = note.includes("ml skip");
-  if (reason.includes("insufficient")) {
-    if (input.step === 1) {
-      return ml
-        ? "Why: history says another silent charge on this card is unlikely to recover, so we did not wait for payday."
-        : "Why: the bank already said there wasn’t enough money. Waiting and charging the same card is the loop we avoid.";
-    }
-    if (input.step === 2) {
-      return "Why: a longer wait does not fix the same shortfall on the same card, so this retry was not run.";
-    }
-    return "Why: we do not do a last silent charge and then text after more failures. The payment link is the next channel.";
+  const agentSkip =
+    input.recommendedAction === "SKIP_EXTRA_RETRY" || input.policyReason === "AGENT_SKIP_EXTRA_RETRY";
+  const javaScoreUsed = input.scoreStatus === "SCORED" && input.mlScore != null;
+  const p = input.mlScore != null ? `${Math.round(input.mlScore * 100)}%` : null;
+
+  if (note.includes("ml skip") || (javaScoreUsed && input.policyVerdict === "SKIP_RETRY" && !agentSkip)) {
+    return `Why: we already ran the first retry. P(recovery)${p ? ` was ${p}` : " was low"}, so extra waits at T+96h / T+5d were not run.`;
   }
-  if (ml) {
-    return "Why: this customer is unlikely to pay on another silent charge, so we changed channel.";
+
+  if (agentSkip || note.includes("agent_skip") || note.includes("after first retry") || note.includes("policy")) {
+    return javaScoreUsed && p
+      ? `Why: first retry already ran. Chance they pay was ${p}, so extra silent retries were skipped.`
+      : "Why: first retry already ran. Extra silent retries were skipped so we do not loop the same card.";
   }
-  if (reason.includes("card_expired") || reason.includes("expired")) {
+
+  if (input.failureReason.toLowerCase().includes("card_expired") || input.failureReason.toLowerCase().includes("expired")) {
     return "Why: this card is dead. A retry on it cannot succeed.";
-  }
-  if (note.includes("policy skip") || input.policyVerdict === "SKIP_RETRY") {
-    return "Why: another silent retry would not help, so we moved on.";
   }
   return "Why: this step was not run so it does not repeat.";
 }

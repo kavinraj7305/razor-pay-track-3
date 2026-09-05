@@ -84,9 +84,6 @@ public class PolicyEngine {
 	@Transactional
 	public PolicyDecision apply(RecoveryCase recoveryCase) {
 		PolicyDecision decision = evaluate(recoveryCase);
-		if (decision.skipRetry()) {
-			cancelPlannedRetries(recoveryCase, decision);
-		}
 		if (decision.verdict() != PolicyDecision.Verdict.ALLOW) {
 			Map<String, Object> details = detailsOf(decision);
 			if (decision.skipRetry()) {
@@ -140,23 +137,6 @@ public class PolicyEngine {
 					.orElse(DEFAULT_HUMAN_APPROVAL);
 		}
 		return amount.compareTo(threshold) >= 0;
-	}
-
-	private void cancelPlannedRetries(RecoveryCase recoveryCase, PolicyDecision decision) {
-		recoveryActionRepository.findByRecoveryCase_CaseId(recoveryCase.getCaseId()).stream()
-				.filter(action -> action.getActionType() == RecoveryActionType.RETRY_PAYMENT)
-				.filter(action -> action.getStatus() == RecoveryActionStatus.PLANNED)
-				.forEach(action -> {
-					action.setStatus(RecoveryActionStatus.CANCELLED);
-					action.setExecutedAt(LocalDateTime.now());
-					int step = action.getAttemptNumber() == null ? 1 : action.getAttemptNumber();
-					PlaybookClock.Window window = PlaybookClock.of(recoveryCase.getReason(), step);
-					action.setWaitHours(window.hours());
-					action.setScheduleLabel(window.label());
-					action.setReason(
-							window.label() + " · Policy " + decision.reason() + ": " + decision.recommendedAction());
-					recoveryActionRepository.save(action);
-				});
 	}
 
 	private Map<String, Object> detailsOf(PolicyDecision decision) {

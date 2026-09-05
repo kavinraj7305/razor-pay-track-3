@@ -276,7 +276,7 @@ export function RecoveryDesk() {
     ? chanceLabel(detail.score?.recoveryProbability ?? detail.recoveryProbability, detail.score?.status ?? detail.scoreStatus)
     : null;
   const next = detail ? nextUseful(detail, proposal) : null;
-  const story = detail ? caseStory(detail, { held, finished, running, ticker, next }) : "";
+  const story = detail ? caseStory(detail, { held, finished, running, ticker, next, proposal }) : "";
 
   return (
     <div className="wrap desk-page">
@@ -405,6 +405,10 @@ export function RecoveryDesk() {
                     actionNote: done?.note ?? null,
                     playbookNote: step.note,
                     policyVerdict: detail.policy?.verdict ?? null,
+                    policyReason: detail.policy?.reason ?? null,
+                    recommendedAction: proposal?.recommendedAction ?? detail.policy?.recommendedAction ?? null,
+                    scoreStatus: detail.score?.status ?? detail.scoreStatus,
+                    mlScore: proposal?.mlScore ?? detail.score?.recoveryProbability ?? detail.recoveryProbability,
                   });
                   return (
                     <li key={step.step} className={state}>
@@ -449,7 +453,14 @@ function nextUseful(detail: CaseDetail, proposal: CaseProposal | null) {
 
 function caseStory(
   detail: CaseDetail,
-  state: { held: boolean; finished: boolean; running: boolean; ticker: string; next: string | null },
+  state: {
+    held: boolean;
+    finished: boolean;
+    running: boolean;
+    ticker: string;
+    next: string | null;
+    proposal: CaseProposal | null;
+  },
 ) {
   if (state.running) {
     return state.ticker || "Recovery is running.";
@@ -467,7 +478,7 @@ function caseStory(
     (action) => action.actionType === "SEND_PAYMENT_LINK" && action.status === "EXECUTED",
   );
   if (linkSent && skipped) {
-    return "The same card already failed for insufficient funds. We skipped the extra silent retries — that is the loop — and sent one payment link instead.";
+    return "We ran the first payday retry once. After that, chance they pay was too low for extra silent retries, so we sent a payment link.";
   }
   if (linkSent) {
     return "We sent one payment link so they can pay with another method.";

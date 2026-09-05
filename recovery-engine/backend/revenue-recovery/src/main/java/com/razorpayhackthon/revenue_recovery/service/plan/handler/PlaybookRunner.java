@@ -52,7 +52,7 @@ public class PlaybookRunner {
 		return next;
 	}
 
-	/** Mark upcoming silent retries as done-cancelled so the playbook can advance to a pay-link / SMS. */
+	/** Skip extra silent retries after the first one has run. Step 1 is never skipped. */
 	public int skipUpcomingRetries(RecoveryCase recoveryCase, List<PlaybookStepPreview> playbook, String why) {
 		int last = playbook.stream().mapToInt(PlaybookStepPreview::step).max().orElse(0);
 		int skipped = 0;
@@ -67,6 +67,9 @@ public class PlaybookRunner {
 					.findFirst()
 					.orElse(null);
 			if (preview == null || !"RETRY_PAYMENT".equals(preview.actionType())) {
+				return skipped;
+			}
+			if (stepNumber <= 1) {
 				return skipped;
 			}
 			skipRetryStep(recoveryCase, preview, why);
