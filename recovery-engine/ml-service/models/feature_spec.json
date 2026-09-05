@@ -23,11 +23,15 @@
   "categories": {
     "reason": [
       "captured",
+      "card_declined",
       "card_expired",
+      "card_not_enrolled",
       "checkout.abandoned",
+      "currency_not_supported",
       "insufficient_funds",
       "invoice.expired",
       "payment_risk_check_failed",
+      "payment_timed_out",
       "subscription.halted",
       "subscription.pending"
     ],

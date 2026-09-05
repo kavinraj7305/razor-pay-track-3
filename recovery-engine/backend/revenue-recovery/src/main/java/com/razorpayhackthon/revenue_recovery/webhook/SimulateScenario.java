@@ -15,7 +15,7 @@ public enum SimulateScenario {
 			"risk-failed",
 			"payment.failed",
 			"payment_risk_check_failed",
-			"Live mix ~25% — do not retry, escalate"),
+			"Do not retry — escalate"),
 	SUBSCRIPTION_PENDING(
 			"subscription-pending",
 			"subscription.pending",
@@ -30,22 +30,22 @@ public enum SimulateScenario {
 			"card-not-enrolled",
 			"payment.failed",
 			"card_not_enrolled",
-			"Live mix ~40% — send payment link (complete 3DS)"),
+			"Send payment link (complete 3DS)"),
 	PAYMENT_TIMED_OUT(
 			"payment-timed-out",
 			"payment.failed",
 			"payment_timed_out",
-			"Live mix ~15% — short wait, then retry"),
+			"Short wait, then retry"),
 	CARD_DECLINED(
 			"card-declined",
 			"payment.failed",
 			"card_declined",
-			"Live mix ~10% — one retry, then a payment link"),
+			"One retry, then a payment link"),
 	CURRENCY_NOT_SUPPORTED(
 			"currency-not-supported",
 			"payment.failed",
 			"currency_not_supported",
-			"Live mix ~5% — send payment link (other method)"),
+			"Send payment link (other method)"),
 	PAYMENT_CAPTURED("payment-captured", "payment.captured", "captured", "Close case — ₹ recovered");
 
 	private final String slug;

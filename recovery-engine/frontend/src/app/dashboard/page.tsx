@@ -92,7 +92,7 @@ function Scoreboard({ report }: { report: BenchmarkReport }) {
     <section className="scoreboard">
       <div className="ops-head">
         <div>
-          <p className="pill">Measured batch · 500 labelled failures</p>
+          <p className="pill">Measured batch · {report.events} labelled failures</p>
           <strong>{report.pitch}</strong>
         </div>
       </div>

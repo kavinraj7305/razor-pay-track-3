@@ -1,4 +1,4 @@
-"""Baseline vs AI scoreboard on the 500 labelled synthetic events.
+"""Baseline vs AI scoreboard on the labelled synthetic events.
 
 Uses the trained XGBoost file and the same skip / block rules as Java
 (PolicyEngine + MlDataGate). Does not invent percentages.

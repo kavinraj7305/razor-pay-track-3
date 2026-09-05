@@ -10,8 +10,10 @@ public record DashboardSnapshot(
 		long failed,
 		long pendingApprovals,
 		BigDecimal amountAtRisk,
+		BigDecimal recoveredInr,
 		long adminCount,
 		long approverCount,
 		long operatorCount,
 		List<ReasonCount> byReason,
+		List<ReasonCount> recoveredByReason,
 		List<UserRow> users) {}

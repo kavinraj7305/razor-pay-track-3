@@ -9,10 +9,10 @@ import tools.jackson.databind.json.JsonMapper;
 class BenchmarkServiceTest {
 
 	@Test
-	void loadsTheRan500EventScoreboard() {
+	void loadsTheRanEventScoreboard() {
 		BenchmarkService service = new BenchmarkService(new JsonMapper());
 		Map<String, Object> report = service.latest();
-		assertThat(report.get("events")).isEqualTo(500);
+		assertThat(report.get("events")).isEqualTo(1000);
 		assertThat(report.get("merchantId")).isEqualTo("acc_syn_training");
 		assertThat(report.get("pitch")).asString().contains("First retry always runs");
 		assertThat(((Number) report.get("recoveredDeltaInr")).doubleValue()).isPositive();

@@ -20,18 +20,23 @@ import numpy as np
 import pandas as pd
 
 SEED = 42
-DEFAULT_N = 500
+DEFAULT_N = 1000
 MERCHANT_ID = "acc_syn_training"
 NOW = datetime(2026, 9, 1, 18, 0, tzinfo=timezone.utc)
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 
-# Mix for the default 500; scaled with largest-remainder when --n changes.
+# Mix for the default 1000; scaled with largest-remainder when --n changes.
+# Payment-fail rows follow the live Razorpay mix (enrolled / risk / timeout / declined / currency).
 REASON_WEIGHTS: dict[str, int] = {
+    "card_not_enrolled": 80,
+    "payment_risk_check_failed": 50,
+    "payment_timed_out": 30,
+    "card_declined": 20,
+    "currency_not_supported": 10,
     "insufficient_funds": 70,
     "card_expired": 50,
-    "payment_risk_check_failed": 40,
     "subscription.pending": 50,
     "subscription.halted": 40,
     "invoice.expired": 40,
@@ -59,6 +64,46 @@ REASON_META: dict[str, dict] = {
         "amount": (499.0, 4999.0),
         "retries": (0, 1),
         "logit": -0.25,
+    },
+    "card_not_enrolled": {
+        "workflow": "payment_subscription_fail",
+        "event_type": "payment.failed",
+        "source": "PAYMENT",
+        "baseline_action": "SEND_PAYMENT_LINK",
+        "methods": ("card",),
+        "amount": (299.0, 3999.0),
+        "retries": (0, 0),
+        "logit": -0.20,
+    },
+    "payment_timed_out": {
+        "workflow": "payment_subscription_fail",
+        "event_type": "payment.failed",
+        "source": "PAYMENT",
+        "baseline_action": "RETRY_PAYMENT",
+        "methods": ("card", "upi", "netbanking"),
+        "amount": (199.0, 2999.0),
+        "retries": (0, 2),
+        "logit": 0.40,
+    },
+    "card_declined": {
+        "workflow": "payment_subscription_fail",
+        "event_type": "payment.failed",
+        "source": "PAYMENT",
+        "baseline_action": "RETRY_PAYMENT",
+        "methods": ("card",),
+        "amount": (399.0, 4999.0),
+        "retries": (0, 2),
+        "logit": 0.10,
+    },
+    "currency_not_supported": {
+        "workflow": "payment_subscription_fail",
+        "event_type": "payment.failed",
+        "source": "PAYMENT",
+        "baseline_action": "SEND_PAYMENT_LINK",
+        "methods": ("card", "upi"),
+        "amount": (499.0, 6999.0),
+        "retries": (0, 0),
+        "logit": -0.30,
     },
     "payment_risk_check_failed": {
         "workflow": "payment_subscription_fail",
@@ -242,7 +287,13 @@ def label_paid(
 def priority_of(reason: str, amount: float) -> str:
     if reason == "payment_risk_check_failed" or amount >= 80_000:
         return "CRITICAL"
-    if amount >= 10_000 or reason in {"subscription.halted", "invoice.expired"}:
+    if amount >= 10_000 or reason in {
+        "subscription.halted",
+        "invoice.expired",
+        "card_not_enrolled",
+        "currency_not_supported",
+        "card_declined",
+    }:
         return "HIGH"
     return "MEDIUM"
 
@@ -314,6 +365,39 @@ def build_events(
     return pd.DataFrame(rows)
 
 
+def write_case_features(events: pd.DataFrame) -> None:
+    payments = events["prior_payment_count"].clip(lower=1)
+    rec_attempts = events["historical_recovery_attempts"].clip(lower=1)
+    frame = pd.DataFrame(
+        {
+            "case_id": events["event_id"].str.replace("evt_", "case_", regex=False),
+            "customer_id": events["customer_id"],
+            "reason": events["reason"],
+            "source": events["source"],
+            "amount_inr": events["amount_inr"],
+            "priority": events["priority"],
+            "payment_method": events["payment_method"],
+            "retry_count": events["retry_count"],
+            "hours_since_fail": events["hours_since_fail"],
+            "paid_eventually": events["paid_eventually"],
+            "historical_recovery_rate": (events["historical_recovery_successes"] / rec_attempts).round(4),
+            "retry_history_count": events["customer_retry_history_count"],
+            "merchant_id": events["merchant_id"],
+            "payment_success_rate": (events["prior_success_count"] / payments).round(4),
+            "payment_failure_rate": (events["prior_failure_count"] / payments).round(4),
+            "avg_payment_delay": events["avg_payment_delay_hours"],
+            "subscription_age_months": events["subscription_age_months"],
+            "lifetime_value": events["lifetime_value_inr"],
+            "avg_order_value": events["avg_order_value_inr"],
+            "days_since_last_activity": events["days_since_last_activity"],
+            "history_payment_count": events["prior_payment_count"],
+        }
+    )
+    path = DATA_DIR / "case_features.csv"
+    frame.to_csv(path, index=False)
+    print(f"wrote {path}")
+
+
 def summary_of(events: pd.DataFrame) -> dict:
     by_reason = (
         events.groupby("reason")
@@ -346,7 +430,7 @@ def summary_of(events: pd.DataFrame) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate labelled synthetic recovery events")
-    parser.add_argument("--n", type=int, default=DEFAULT_N, help="row count (300-500)")
+    parser.add_argument("--n", type=int, default=DEFAULT_N, help="row count (300-1000)")
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument(
         "--no-postgres",
@@ -354,8 +438,8 @@ def main() -> None:
         help="skip seeding Postgres (files only)",
     )
     args = parser.parse_args()
-    if args.n < 300 or args.n > 500:
-        raise SystemExit("--n must be between 300 and 500")
+    if args.n < 300 or args.n > 1000:
+        raise SystemExit("--n must be between 300 and 1000")
 
     rng = np.random.default_rng(args.seed)
     counts = allocate_counts(args.n)
@@ -370,6 +454,7 @@ def main() -> None:
 
     events.to_csv(csv_path, index=False)
     events.to_json(json_path, orient="records", indent=2)
+    write_case_features(events)
     summary = summary_of(events)
     summary["seed"] = args.seed
     summary["merchant_id"] = MERCHANT_ID

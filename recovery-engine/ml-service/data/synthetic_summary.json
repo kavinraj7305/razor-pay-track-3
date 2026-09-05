@@ -1,78 +1,110 @@
 {
-  "n_events": 500,
-  "n_customers": 500,
-  "paid_eventually_rate": 0.408,
-  "amount_at_risk_inr": 2768442.88,
-  "amount_recovered_inr": 599798.74,
+  "n_events": 1000,
+  "n_customers": 1000,
+  "paid_eventually_rate": 0.43,
+  "amount_at_risk_inr": 4316562.65,
+  "amount_recovered_inr": 985936.1,
   "risk_80k_count": 12,
   "by_workflow": {
-    "checkout_abandon": 100,
-    "payment_subscription_fail": 400
+    "checkout_abandon": 145,
+    "payment_subscription_fail": 855
   },
   "by_reason": [
     {
       "reason": "captured",
-      "n": 37,
-      "paid": 37,
-      "amount_at_risk_inr": 38473.14,
-      "amount_recovered_inr": 38473.14,
+      "n": 55,
+      "paid": 55,
+      "amount_at_risk_inr": 59899.2,
+      "amount_recovered_inr": 59899.2,
       "paid_rate": 1.0
     },
     {
+      "reason": "card_declined",
+      "n": 36,
+      "paid": 11,
+      "amount_at_risk_inr": 109316.27,
+      "amount_recovered_inr": 30883.17,
+      "paid_rate": 0.3056
+    },
+    {
       "reason": "card_expired",
-      "n": 62,
-      "paid": 26,
-      "amount_at_risk_inr": 180444.5,
-      "amount_recovered_inr": 74326.91,
-      "paid_rate": 0.4194
+      "n": 91,
+      "paid": 41,
+      "amount_at_risk_inr": 229757.65,
+      "amount_recovered_inr": 101748.65,
+      "paid_rate": 0.4505
+    },
+    {
+      "reason": "card_not_enrolled",
+      "n": 145,
+      "paid": 63,
+      "amount_at_risk_inr": 308618.41,
+      "amount_recovered_inr": 128299.64,
+      "paid_rate": 0.4345
     },
     {
       "reason": "checkout.abandoned",
-      "n": 100,
-      "paid": 31,
-      "amount_at_risk_inr": 146749.02,
-      "amount_recovered_inr": 54813.73,
-      "paid_rate": 0.31
+      "n": 145,
+      "paid": 66,
+      "amount_at_risk_inr": 197691.3,
+      "amount_recovered_inr": 93768.22,
+      "paid_rate": 0.4552
+    },
+    {
+      "reason": "currency_not_supported",
+      "n": 18,
+      "paid": 8,
+      "amount_at_risk_inr": 64835.68,
+      "amount_recovered_inr": 24532.28,
+      "paid_rate": 0.4444
     },
     {
       "reason": "insufficient_funds",
-      "n": 88,
-      "paid": 49,
-      "amount_at_risk_inr": 144779.01,
-      "amount_recovered_inr": 78628.76,
-      "paid_rate": 0.5568
+      "n": 127,
+      "paid": 72,
+      "amount_at_risk_inr": 200866.79,
+      "amount_recovered_inr": 104309.71,
+      "paid_rate": 0.5669
     },
     {
       "reason": "invoice.expired",
-      "n": 50,
-      "paid": 17,
-      "amount_at_risk_inr": 720879.04,
-      "amount_recovered_inr": 272766.9,
-      "paid_rate": 0.34
+      "n": 73,
+      "paid": 18,
+      "amount_at_risk_inr": 1032942.93,
+      "amount_recovered_inr": 236564.55,
+      "paid_rate": 0.2466
     },
     {
       "reason": "payment_risk_check_failed",
-      "n": 50,
-      "paid": 4,
-      "amount_at_risk_inr": 1349824.39,
-      "amount_recovered_inr": 26502.1,
-      "paid_rate": 0.08
+      "n": 91,
+      "paid": 8,
+      "amount_at_risk_inr": 1746509.55,
+      "amount_recovered_inr": 71645.53,
+      "paid_rate": 0.0879
+    },
+    {
+      "reason": "payment_timed_out",
+      "n": 55,
+      "paid": 26,
+      "amount_at_risk_inr": 94210.27,
+      "amount_recovered_inr": 38969.29,
+      "paid_rate": 0.4727
     },
     {
       "reason": "subscription.halted",
-      "n": 50,
-      "paid": 10,
-      "amount_at_risk_inr": 113825.27,
-      "amount_recovered_inr": 21592.93,
-      "paid_rate": 0.2
+      "n": 73,
+      "paid": 16,
+      "amount_at_risk_inr": 164704.37,
+      "amount_recovered_inr": 42197.5,
+      "paid_rate": 0.2192
     },
     {
       "reason": "subscription.pending",
-      "n": 63,
-      "paid": 30,
-      "amount_at_risk_inr": 73468.51,
-      "amount_recovered_inr": 32694.27,
-      "paid_rate": 0.4762
+      "n": 91,
+      "paid": 46,
+      "amount_at_risk_inr": 107210.23,
+      "amount_recovered_inr": 53118.36,
+      "paid_rate": 0.5055
     }
   ],
   "seed": 42,
@@ -80,11 +112,5 @@
   "files": {
     "csv": "data/synthetic_events.csv",
     "json": "data/synthetic_events.json"
-  },
-  "postgres": {
-    "cases": 500,
-    "paid": 204,
-    "customers": 500,
-    "payments": 12571
   }
 }

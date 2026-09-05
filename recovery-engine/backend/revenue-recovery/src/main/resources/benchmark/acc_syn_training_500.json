@@ -1,50 +1,50 @@
 {
-  "ranAt": "2026-09-05T16:59:04Z",
+  "ranAt": "2026-09-05T18:11:29Z",
   "merchantId": "acc_syn_training",
   "seed": 42,
-  "events": 500,
-  "labelledPaid": 204,
-  "amountAtRiskInr": 2768442.88,
-  "oracleRecoveredInr": 599798.74,
-  "oracleRate": 0.2167,
+  "events": 1000,
+  "labelledPaid": 430,
+  "amountAtRiskInr": 4316562.65,
+  "oracleRecoveredInr": 985936.1,
+  "oracleRate": 0.2284,
   "baseline": {
-    "chases": 413,
-    "recoveredCases": 200,
-    "recoveredInr": 573296.64,
-    "recoveryRate": 0.2071,
-    "wastedChases": 250,
-    "wastedInr": 845321.85,
-    "missedCases": 4,
-    "missedInr": 26502.1,
-    "correctSkips": 46
+    "chases": 854,
+    "recoveredCases": 422,
+    "recoveredInr": 914290.57,
+    "recoveryRate": 0.2118,
+    "wastedChases": 487,
+    "wastedInr": 1655762.53,
+    "missedCases": 8,
+    "missedInr": 71645.53,
+    "correctSkips": 83
   },
   "ai": {
-    "chases": 415,
-    "recoveredCases": 202,
-    "recoveredInr": 585768.46,
-    "recoveryRate": 0.2116,
-    "wastedChases": 250,
-    "wastedInr": 845321.85,
-    "missedCases": 2,
-    "missedInr": 14030.28,
-    "correctSkips": 46
+    "chases": 857,
+    "recoveredCases": 424,
+    "recoveredInr": 938450.99,
+    "recoveryRate": 0.2174,
+    "wastedChases": 487,
+    "wastedInr": 1655762.53,
+    "missedCases": 5,
+    "missedInr": 43774.18,
+    "correctSkips": 83
   },
-  "recoveredDeltaInr": 12471.82,
-  "incrementalPct": 0.0218,
+  "recoveredDeltaInr": 24160.42,
+  "incrementalPct": 0.0264,
   "wastedChaseSavedInr": 0.0,
   "wastedChasesAvoided": 0,
-  "policyBlocked": 48,
-  "humanEscalations": 50,
-  "mlSkipRetry": 9,
-  "extraRetriesSkipped": 18,
-  "highPHoldsReleased": 2,
-  "highPHoldRecoveredInr": 12471.82,
+  "policyBlocked": 88,
+  "humanEscalations": 91,
+  "mlSkipRetry": 16,
+  "extraRetriesSkipped": 32,
+  "highPHoldsReleased": 3,
+  "highPHoldRecoveredInr": 27871.35,
   "auditCoveragePct": 1.0,
   "model": {
     "file": "models/recovery_xgb.json",
-    "rocAuc": 0.7019,
-    "prAuc": 0.6691,
-    "f1": 0.4731,
+    "rocAuc": 0.6117,
+    "prAuc": 0.5795,
+    "f1": 0.4837,
     "threshold": 0.5
   },
   "rules": {
@@ -58,76 +58,132 @@
   "byReason": [
     {
       "reason": "captured",
-      "events": 37,
-      "amountAtRiskInr": 38473.14,
-      "baselineRecoveredInr": 38473.14,
-      "aiRecoveredInr": 38473.14
+      "events": 55,
+      "amountAtRiskInr": 59899.2,
+      "baselineRecoveredInr": 59899.2,
+      "aiRecoveredInr": 59899.2
+    },
+    {
+      "reason": "card_declined",
+      "events": 36,
+      "amountAtRiskInr": 109316.27,
+      "baselineRecoveredInr": 30883.17,
+      "aiRecoveredInr": 27172.24
     },
     {
       "reason": "card_expired",
-      "events": 62,
-      "amountAtRiskInr": 180444.5,
-      "baselineRecoveredInr": 74326.91,
-      "aiRecoveredInr": 74326.91
+      "events": 91,
+      "amountAtRiskInr": 229757.65,
+      "baselineRecoveredInr": 101748.65,
+      "aiRecoveredInr": 101748.65
+    },
+    {
+      "reason": "card_not_enrolled",
+      "events": 145,
+      "amountAtRiskInr": 308618.41,
+      "baselineRecoveredInr": 128299.64,
+      "aiRecoveredInr": 128299.64
     },
     {
       "reason": "checkout.abandoned",
-      "events": 100,
-      "amountAtRiskInr": 146749.02,
-      "baselineRecoveredInr": 54813.73,
-      "aiRecoveredInr": 54813.73
+      "events": 145,
+      "amountAtRiskInr": 197691.3,
+      "baselineRecoveredInr": 93768.22,
+      "aiRecoveredInr": 93768.22
+    },
+    {
+      "reason": "currency_not_supported",
+      "events": 18,
+      "amountAtRiskInr": 64835.68,
+      "baselineRecoveredInr": 24532.28,
+      "aiRecoveredInr": 24532.28
     },
     {
       "reason": "insufficient_funds",
-      "events": 88,
-      "amountAtRiskInr": 144779.01,
-      "baselineRecoveredInr": 78628.76,
-      "aiRecoveredInr": 78628.76
+      "events": 127,
+      "amountAtRiskInr": 200866.79,
+      "baselineRecoveredInr": 104309.71,
+      "aiRecoveredInr": 104309.71
     },
     {
       "reason": "invoice.expired",
-      "events": 50,
-      "amountAtRiskInr": 720879.04,
-      "baselineRecoveredInr": 272766.9,
-      "aiRecoveredInr": 272766.9
+      "events": 73,
+      "amountAtRiskInr": 1032942.93,
+      "baselineRecoveredInr": 236564.55,
+      "aiRecoveredInr": 236564.55
     },
     {
       "reason": "payment_risk_check_failed",
-      "events": 50,
-      "amountAtRiskInr": 1349824.39,
+      "events": 91,
+      "amountAtRiskInr": 1746509.55,
       "baselineRecoveredInr": 0.0,
-      "aiRecoveredInr": 12471.82
+      "aiRecoveredInr": 27871.35
+    },
+    {
+      "reason": "payment_timed_out",
+      "events": 55,
+      "amountAtRiskInr": 94210.27,
+      "baselineRecoveredInr": 38969.29,
+      "aiRecoveredInr": 38969.29
     },
     {
       "reason": "subscription.halted",
-      "events": 50,
-      "amountAtRiskInr": 113825.27,
-      "baselineRecoveredInr": 21592.93,
-      "aiRecoveredInr": 21592.93
+      "events": 73,
+      "amountAtRiskInr": 164704.37,
+      "baselineRecoveredInr": 42197.5,
+      "aiRecoveredInr": 42197.5
     },
     {
       "reason": "subscription.pending",
-      "events": 63,
-      "amountAtRiskInr": 73468.51,
-      "baselineRecoveredInr": 32694.27,
-      "aiRecoveredInr": 32694.27
+      "events": 91,
+      "amountAtRiskInr": 107210.23,
+      "baselineRecoveredInr": 53118.36,
+      "aiRecoveredInr": 53118.36
     }
   ],
   "unresolved": [
     {
-      "eventId": "evt_syn_0169",
+      "eventId": "evt_syn_0180",
       "reason": "payment_risk_check_failed",
-      "amountInr": 12605.58,
-      "pRecovery": 0.3709,
+      "amountInr": 12341.0,
+      "pRecovery": 0.3589,
       "why": "RISK_OR_CANCELLED"
     },
     {
-      "eventId": "evt_syn_0171",
+      "eventId": "evt_syn_0166",
       "reason": "payment_risk_check_failed",
-      "amountInr": 1424.7,
-      "pRecovery": 0.3355,
+      "amountInr": 12091.01,
+      "pRecovery": 0.0342,
       "why": "RISK_OR_CANCELLED"
+    },
+    {
+      "eventId": "evt_syn_0219",
+      "reason": "payment_risk_check_failed",
+      "amountInr": 9726.74,
+      "pRecovery": 0.0789,
+      "why": "RISK_OR_CANCELLED"
+    },
+    {
+      "eventId": "evt_syn_0179",
+      "reason": "payment_risk_check_failed",
+      "amountInr": 5249.5,
+      "pRecovery": 0.4206,
+      "why": "RISK_OR_CANCELLED"
+    },
+    {
+      "eventId": "evt_syn_0210",
+      "reason": "payment_risk_check_failed",
+      "amountInr": 4365.93,
+      "pRecovery": 0.3917,
+      "why": "RISK_OR_CANCELLED"
+    },
+    {
+      "eventId": "evt_syn_0327",
+      "reason": "card_declined",
+      "amountInr": 3710.93,
+      "pRecovery": 0.109,
+      "why": "SKIPPED_LATE_PAYER"
     }
   ],
-  "pitch": "Playbook recovered INR 5.73L. First retry always runs - that try is cheap - then P only cuts extra silent retries on the weakest cards, and high-P risk holds go to a person. Recovered INR 5.86L (+INR 12,472). Skipped 18 extra retries. We do not give up people who pay on the first try."
+  "pitch": "Playbook recovered INR 9.14L. First retry always runs - that try is cheap - then P only cuts extra silent retries on the weakest cards, and high-P risk holds go to a person. Recovered INR 9.38L (+INR 24,160). Skipped 32 extra retries. We do not give up people who pay on the first try."
 }

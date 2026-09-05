@@ -354,7 +354,9 @@ export function RecoveryDesk() {
               {scenarios.map((scenario) => (
                 <option key={scenario.slug} value={scenario.slug}>
                   {prettyWords(scenario.reason)}
-                  {scenario.intendedAction ? ` · ${scenario.intendedAction}` : ""}
+                  {scenario.intendedAction
+                    ? ` · ${scenario.intendedAction.replace(/Live mix ~\d+%\s*[—-]\s*/i, "")}`
+                    : ""}
                 </option>
               ))}
             </select>

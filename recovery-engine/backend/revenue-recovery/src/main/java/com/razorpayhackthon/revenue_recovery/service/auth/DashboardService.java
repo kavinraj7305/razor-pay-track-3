@@ -43,11 +43,18 @@ public class DashboardService {
 		long recovered = 0;
 		long failed = 0;
 		BigDecimal atRisk = BigDecimal.ZERO;
-		Map<String, Long> reasons = new LinkedHashMap<>();
+		BigDecimal recoveredInr = BigDecimal.ZERO;
+		Map<String, Long> stuck = new LinkedHashMap<>();
+		Map<String, Long> paid = new LinkedHashMap<>();
 		for (RecoveryCase recoveryCase : cases) {
 			RecoveryCaseStatus status = recoveryCase.getStatus();
+			String reason = recoveryCase.getReason() == null ? "unknown" : recoveryCase.getReason();
 			if (status == RecoveryCaseStatus.RECOVERED) {
 				recovered++;
+				if (recoveryCase.getAmountAtRisk() != null) {
+					recoveredInr = recoveredInr.add(recoveryCase.getAmountAtRisk());
+				}
+				paid.merge(reason, 1L, Long::sum);
 			} else if (status == RecoveryCaseStatus.FAILED || status == RecoveryCaseStatus.EXPIRED) {
 				failed++;
 			} else {
@@ -55,12 +62,13 @@ public class DashboardService {
 				if (recoveryCase.getAmountAtRisk() != null) {
 					atRisk = atRisk.add(recoveryCase.getAmountAtRisk());
 				}
+				stuck.merge(reason, 1L, Long::sum);
 			}
-			String reason = recoveryCase.getReason() == null ? "unknown" : recoveryCase.getReason();
-			reasons.merge(reason, 1L, Long::sum);
 		}
 		List<ReasonCount> byReason = new ArrayList<>();
-		reasons.forEach((reason, count) -> byReason.add(new ReasonCount(reason, count)));
+		stuck.forEach((reason, count) -> byReason.add(new ReasonCount(reason, count)));
+		List<ReasonCount> recoveredByReason = new ArrayList<>();
+		paid.forEach((reason, count) -> recoveredByReason.add(new ReasonCount(reason, count)));
 		return new DashboardSnapshot(
 				cases.size(),
 				open,
@@ -68,10 +76,12 @@ public class DashboardService {
 				failed,
 				approvalService.pendingCount(),
 				atRisk,
+				recoveredInr,
 				deskUserRepository.countByRoleAndActiveTrue(DeskRole.ADMIN),
 				deskUserRepository.countByRoleAndActiveTrue(DeskRole.APPROVER),
 				deskUserRepository.countByRoleAndActiveTrue(DeskRole.OPERATOR),
 				byReason,
+				recoveredByReason,
 				authService.listUsers());
 	}
 }

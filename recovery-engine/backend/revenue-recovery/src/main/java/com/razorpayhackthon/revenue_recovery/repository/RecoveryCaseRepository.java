@@ -3,6 +3,7 @@ package com.razorpayhackthon.revenue_recovery.repository;
 import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryCaseStatus;
 import com.razorpayhackthon.revenue_recovery.enums.RecoverySource;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,6 +17,9 @@ public interface RecoveryCaseRepository extends JpaRepository<RecoveryCase, Long
 	List<RecoveryCase> findBySourceAndSourceId(RecoverySource source, String sourceId);
 
 	List<RecoveryCase> findBySourceAndStatus(RecoverySource source, RecoveryCaseStatus status);
+
+	List<RecoveryCase> findBySourceAndStatusNotInOrderByCreatedAtDesc(
+			RecoverySource source, Collection<RecoveryCaseStatus> statuses);
 
 	List<RecoveryCase> findAllByOrderByCreatedAtDesc();
 
