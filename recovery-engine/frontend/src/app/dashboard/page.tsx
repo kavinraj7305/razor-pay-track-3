@@ -2,16 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DeskChrome, RoleGate } from "@/components/DeskChrome";
-import { adminBenchmark, adminDashboard, createDeskUser, inr, pct, prettyError } from "@/lib/api";
-import type { BenchmarkReport, DashboardSnapshot } from "@/lib/types";
+import { PlatformStrip } from "@/components/PlatformStrip";
+import { adminBenchmark, adminDashboard, adminPlatform, inr, pct, prettyError } from "@/lib/api";
+import type { BenchmarkReport, DashboardSnapshot, PlatformStatus } from "@/lib/types";
 
 export default function DashboardPage() {
   return (
     <RoleGate allow={["ADMIN"]}>
       <DeskChrome
         kicker="CEO"
-        title="Command dashboard"
-        blurb="See the money, the 500-event baseline-vs-AI number, and add the one other person."
+        title="Recovery overview"
+        blurb="Money at risk, why it is stuck, and how the scored path compared with the reason playbook."
       >
         <AdminBody />
       </DeskChrome>
@@ -22,38 +23,28 @@ export default function DashboardPage() {
 function AdminBody() {
   const [snap, setSnap] = useState<DashboardSnapshot | null>(null);
   const [bench, setBench] = useState<BenchmarkReport | null>(null);
+  const [platform, setPlatform] = useState<PlatformStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [password, setPassword] = useState("");
 
   const load = useCallback(async () => {
-    const [nextSnap, nextBench] = await Promise.all([adminDashboard(), adminBenchmark()]);
+    const [nextSnap, nextBench, nextPlatform] = await Promise.all([
+      adminDashboard(),
+      adminBenchmark(),
+      adminPlatform().catch(() => null),
+    ]);
     setSnap(nextSnap);
     setBench(nextBench);
+    setPlatform(nextPlatform);
   }, []);
 
   useEffect(() => {
     void load().catch((err) => setError(prettyError(err)));
   }, [load]);
 
-  async function run(work: () => Promise<void>) {
-    setBusy(true);
-    setError(null);
-    try {
-      await work();
-      await load();
-    } catch (err) {
-      setError(prettyError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="wrap">
       {error ? <div className="err">{error}</div> : null}
+      <PlatformStrip status={platform} />
       <section className="stat-grid">
         <article className="stat">
           <p className="pill">Amount at risk</p>
@@ -81,83 +72,26 @@ function AdminBody() {
 
       {bench ? <Scoreboard report={bench} /> : null}
 
-      <div className="desk-split">
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Why money is stuck</h2>
-            <span className="muted">Hover a row · {snap?.cases ?? 0} cases</span>
-          </div>
-          {(snap?.byReason ?? []).length === 0 ? (
-            <p className="empty">No cases yet. Open the recovery desk and create a pack.</p>
-          ) : (
-            <div className="rows">
-              {snap?.byReason.map((row) => (
-                <div key={row.reason} className="stuck-row" tabIndex={0}>
-                  <div className="stuck-main">
-                    <span className="reason">{prettyReason(row.reason)}</span>
-                    <span className="stuck-count">{row.count}</span>
-                  </div>
-                  <p className="stuck-tip">{reasonBlurb(row.reason)}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Add the other person</h2>
-            <span className="muted">Human in the loop — signs off blocked cases</span>
-          </div>
-          <form
-            className="form-grid pad"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void run(async () => {
-                await createDeskUser({ email, displayName, password, role: "APPROVER" });
-                setEmail("");
-                setDisplayName("");
-                setPassword("");
-              });
-            }}
-          >
-            <label>
-              Name
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
-            </label>
-            <label>
-              Email
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-            </label>
-            <label>
-              Temporary password
-              <input value={password} onChange={(event) => setPassword(event.target.value)} required />
-            </label>
-            <button className="primary-btn" type="submit" disabled={busy}>
-              {busy ? "Saving…" : "Add human in the loop"}
-            </button>
-          </form>
-        </section>
-      </div>
-
       <section className="panel">
         <div className="panel-head">
-          <h2>Directory</h2>
-          <span className="muted">Two seats</span>
+          <h2>Why money is stuck</h2>
+          <span className="muted">{snap?.cases ?? 0} open cases on the live book</span>
         </div>
-        {(snap?.users ?? [])
-          .filter((user) => user.active && user.role !== "OPERATOR")
-          .map((user) => (
-          <div key={user.userId} className="user-row">
-            <div>
-              <strong>{user.displayName}</strong>
-              <span className="muted">
-                {user.email} · {user.role === "ADMIN" ? "CEO" : "Human in the loop"}
-              </span>
-            </div>
-            <span className="badge">{user.role === "ADMIN" ? "CEO" : "In the loop"}</span>
+        {(snap?.byReason ?? []).length === 0 ? (
+          <p className="empty">No open cases on the live book yet.</p>
+        ) : (
+          <div className="rows">
+            {snap?.byReason.map((row) => (
+              <div key={row.reason} className="stuck-row" tabIndex={0}>
+                <div className="stuck-main">
+                  <span className="reason">{prettyReason(row.reason)}</span>
+                  <span className="stuck-count">{row.count}</span>
+                </div>
+                <p className="stuck-tip">{reasonBlurb(row.reason)}</p>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </section>
     </div>
   );
@@ -168,13 +102,8 @@ function Scoreboard({ report }: { report: BenchmarkReport }) {
     <section className="scoreboard">
       <div className="ops-head">
         <div>
-          <p className="pill">Baseline vs AI · 500 labelled events</p>
+          <p className="pill">Measured batch · 500 labelled failures</p>
           <strong>{report.pitch}</strong>
-        </div>
-        <div className="safety-chips">
-          <span className="chip">seed {report.seed}</span>
-          <span className="chip">{report.merchantId}</span>
-          {report.model.rocAuc != null ? <span className="chip">ROC-AUC {report.model.rocAuc}</span> : null}
         </div>
       </div>
       <div className="score-grid">
@@ -200,7 +129,7 @@ function Scoreboard({ report }: { report: BenchmarkReport }) {
           </span>
         </article>
         <article className="score-col lift">
-          <p className="pill">What the model changed</p>
+          <p className="pill">What scoring changed</p>
           <strong>{inr(report.wastedChaseSavedInr)}</strong>
           <span className="muted">
             doomed chase avoided · {report.wastedChasesAvoided} fewer wasted retries
@@ -212,11 +141,16 @@ function Scoreboard({ report }: { report: BenchmarkReport }) {
         </article>
       </div>
       <p className="muted score-note">
-        Oracle ceiling if every eventual payer came back: {inr(report.oracleRecoveredInr)} ({pct(report.oracleRate)}).
-        Risk cases are not auto-chased on either path. Numbers came from{" "}
-        <code>uv run python scripts/run_benchmark.py</code> — not a slide.
+        If every customer who later paid had come back, the ceiling was {inr(report.oracleRecoveredInr)} (
+        {pct(report.oracleRate)}). Risk and cancelled cases are not auto-chased on either path.
       </p>
       <div className="score-reasons">
+        <div className="score-reason head">
+          <span>Failure</span>
+          <span>Cases</span>
+          <span>Playbook</span>
+          <span>With scoring</span>
+        </div>
         {report.byReason.map((row) => (
           <div key={row.reason} className="score-reason">
             <span className="reason">{prettyReason(row.reason)}</span>
@@ -228,13 +162,13 @@ function Scoreboard({ report }: { report: BenchmarkReport }) {
       </div>
       {report.unresolved.length > 0 ? (
         <div>
-          <p className="pill">Honest misses — AI skipped, label said they paid</p>
+          <p className="pill">Not chased — later paid</p>
           {report.unresolved.map((row) => (
             <div key={row.eventId} className="score-miss">
               <span className="reason">{prettyReason(row.reason)}</span>
               <span>{inr(row.amountInr)}</span>
               <span className="muted">
-                P={pct(row.pRecovery)} · {row.why.replaceAll("_", " ")}
+                P={pct(row.pRecovery)} · {row.why.replaceAll("_", " ").toLowerCase()}
               </span>
             </div>
           ))}

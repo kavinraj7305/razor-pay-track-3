@@ -203,6 +203,19 @@ export type BenchmarkReport = {
   pitch: string;
 };
 
+export type PlatformComponent = {
+  id: string;
+  name: string;
+  connected: boolean;
+  role: string;
+  detail: string;
+};
+
+export type PlatformStatus = {
+  ready: boolean;
+  components: PlatformComponent[];
+};
+
 export type DashboardSnapshot = {
   cases: number;
   open: number;
@@ -227,6 +240,18 @@ export type ApprovalItem = {
   agentDiagnosis: string;
   agentReasoning: string;
   escalate: boolean;
+  priority: string;
+  source: string;
+  sourceId: string;
+  customerId: string | null;
+  merchantId: string | null;
+  playbookAction: string;
+  mlScore: number | null;
+  confidence: number | null;
+  deviatesFromPlaybook: boolean;
+  fallbackUsed: boolean;
+  agentModel: string;
+  agentExecutes: boolean;
 };
 
 export type SimulateResult = {

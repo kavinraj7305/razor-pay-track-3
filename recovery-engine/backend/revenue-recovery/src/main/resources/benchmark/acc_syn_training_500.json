@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-09-05T13:10:38Z",
+  "ranAt": "2026-09-05T13:15:11Z",
   "merchantId": "acc_syn_training",
   "seed": 42,
   "events": 500,
@@ -166,5 +166,5 @@
       "why": "ML_SKIP_RETRY"
     }
   ],
-  "pitch": "On 500 labelled events (INR 2,759,313 at risk), the reason playbook recovered INR 529,677 (19.2%). Playbook + P + policy recovered INR 521,284 (18.9%), skipped 45 low-P retries, held 50 risk/high-amount cases for a human, and cut wasted chases from 253 to 217 (INR 45,851 of doomed chase avoided)."
+  "pitch": "Playbook recovered INR 5.30L. Playbook + P + policy recovered INR 5.21L. We skipped 45 weak retries, cut 36 doomed chases, avoided INR 45,851 of chase that never comes back, and gave up 9 people who later paid."
 }

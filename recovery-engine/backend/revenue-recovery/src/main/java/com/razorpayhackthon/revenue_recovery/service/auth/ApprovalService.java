@@ -78,12 +78,17 @@ public class ApprovalService {
 		if (closed(recoveryCase)) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "case is closed");
 		}
+		String note = request == null || request.note() == null ? "" : request.note().trim();
+		if (note.isBlank()) {
+			throw new ResponseStatusException(
+					HttpStatus.BAD_REQUEST, "write why you are holding or letting this through");
+		}
 		PolicyDecision before = policyEngine.evaluate(recoveryCase);
 		if (approve && !before.blocked() && !"HUMAN_OVERRIDE".equals(before.reason())) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "case is not waiting on policy");
 		}
 		Map<String, Object> details = new LinkedHashMap<>();
-		details.put("note", request == null || request.note() == null ? "" : request.note());
+		details.put("note", note);
 		details.put("previousReason", before.reason());
 		details.put("recommendedAction", before.recommendedAction());
 		details.put("verdict", approve ? "ALLOW" : "BLOCK");
@@ -107,6 +112,10 @@ public class ApprovalService {
 						recoveryCase.getCaseId(), PolicyEngine.AGENT_PROPOSE)
 				.map(event -> event.getDetails() == null ? Map.<String, Object>of() : event.getDetails())
 				.orElse(Map.of());
+		String playbookAction = text(proposal, "defaultPlaybookAction");
+		if (playbookAction.isBlank()) {
+			playbookAction = decision.recommendedAction();
+		}
 		return new ApprovalItem(
 				recoveryCase.getCaseId(),
 				recoveryCase.getReason(),
@@ -114,9 +123,57 @@ public class ApprovalService {
 				recoveryCase.getAmountAtRisk(),
 				decision.reason(),
 				decision.recommendedAction(),
-				String.valueOf(proposal.getOrDefault("diagnosis", "")),
-				String.valueOf(proposal.getOrDefault("reasoning", proposal.getOrDefault("reason", ""))),
-				Boolean.TRUE.equals(proposal.get("escalate")) || decision.escalate());
+				text(proposal, "diagnosis"),
+				firstText(proposal, "reasoning", "reason"),
+				boolOf(proposal.get("escalate")) || decision.escalate(),
+				recoveryCase.getPriority() == null ? "" : recoveryCase.getPriority().name(),
+				recoveryCase.getSource() == null ? "" : recoveryCase.getSource().name(),
+				recoveryCase.getSourceId(),
+				recoveryCase.getCustomer() == null ? null : recoveryCase.getCustomer().getCustomerId(),
+				recoveryCase.getMerchant() == null ? null : recoveryCase.getMerchant().getMerchantId(),
+				playbookAction,
+				numberOf(proposal.get("mlScore")),
+				numberOf(proposal.get("confidence")),
+				boolOf(proposal.get("deviatesFromPlaybook")),
+				boolOf(proposal.get("fallbackUsed")),
+				text(proposal, "model"),
+				false);
+	}
+
+	private static String text(Map<String, Object> proposal, String key) {
+		Object value = proposal.get(key);
+		return value == null ? "" : String.valueOf(value);
+	}
+
+	private static String firstText(Map<String, Object> proposal, String... keys) {
+		for (String key : keys) {
+			String value = text(proposal, key);
+			if (!value.isBlank()) {
+				return value;
+			}
+		}
+		return "";
+	}
+
+	private static boolean boolOf(Object value) {
+		if (value instanceof Boolean bool) {
+			return bool;
+		}
+		return Boolean.parseBoolean(String.valueOf(value == null ? "" : value));
+	}
+
+	private static Double numberOf(Object value) {
+		if (value instanceof Number number) {
+			return number.doubleValue();
+		}
+		if (value == null) {
+			return null;
+		}
+		try {
+			return Double.valueOf(String.valueOf(value));
+		} catch (NumberFormatException ex) {
+			return null;
+		}
 	}
 
 	private static boolean closed(RecoveryCase recoveryCase) {

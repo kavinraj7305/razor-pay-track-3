@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PlatformStrip } from "@/components/PlatformStrip";
 import {
+  adminPlatform,
   createAllIssues,
   createIssue,
   executeNext,
@@ -27,6 +29,7 @@ import type {
   CaseProposal,
   CaseSummary,
   OpsBriefing,
+  PlatformStatus,
   Scenario,
   WebhookInboxSnapshot,
 } from "@/lib/types";
@@ -128,13 +131,13 @@ export function RecoveryDesk() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
-  const [ticker, setTicker] = useState("Select a case, then start the live recovery process.");
+  const [ticker, setTicker] = useState("Select a case, then start recovery.");
   const [runningStep, setRunningStep] = useState<number | null>(null);
   const [scorePop, setScorePop] = useState(false);
   const [waitPct, setWaitPct] = useState(0);
   const [waitClock, setWaitClock] = useState<string | null>(null);
   const [whatNow, setWhatNow] = useState("Nothing running yet.");
-  const [whyNow, setWhyNow] = useState("Press Start to simulate the real playbook timeline (compressed).");
+  const [whyNow, setWhyNow] = useState("Start runs the playbook one step at a time. Waits are shortened so the next action can run.");
   const [outcomeNow, setOutcomeNow] = useState<{ label: string; tone: string; detail: string } | null>(
     null,
   );
@@ -142,6 +145,7 @@ export function RecoveryDesk() {
   const [proposal, setProposal] = useState<CaseProposal | null>(null);
   const [briefing, setBriefing] = useState<OpsBriefing | null>(null);
   const [inbox, setInbox] = useState<WebhookInboxSnapshot | null>(null);
+  const [platform, setPlatform] = useState<PlatformStatus | null>(null);
   const runToken = useRef(0);
 
   const loadBriefing = useCallback(async () => {
@@ -157,6 +161,14 @@ export function RecoveryDesk() {
       setInbox(await webhookInbox());
     } catch {
       setInbox(null);
+    }
+  }, []);
+
+  const loadPlatform = useCallback(async () => {
+    try {
+      setPlatform(await adminPlatform());
+    } catch {
+      setPlatform(null);
     }
   }, []);
 
@@ -187,23 +199,25 @@ export function RecoveryDesk() {
         await refresh();
         void loadBriefing();
         void loadInbox();
+        void loadPlatform();
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Backend is not reachable on :8080");
+          setError(err instanceof Error ? err.message : "Recovery service is not reachable.");
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [refresh, loadBriefing, loadInbox]);
+  }, [refresh, loadBriefing, loadInbox, loadPlatform]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       void loadInbox();
+      void loadPlatform();
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [loadInbox]);
+  }, [loadInbox, loadPlatform]);
 
   async function run(label: string, work: () => Promise<void>) {
     setBusy(label);
@@ -248,9 +262,9 @@ export function RecoveryDesk() {
       let current = detail;
       const hasProposal = current.audit?.some((line) => line.eventType === "AGENT_PROPOSE");
       if (!hasProposal) {
-        setTicker("Asking agent first — policy needs a proposal on the audit trail.");
-        setWhatNow("Java will not execute until the agent proposal is stored.");
-        setWhyNow("PolicyEngine reads AGENT_PROPOSE from audit_event, then allows / skips / blocks.");
+        setTicker("Asking the agent first — policy needs a written proposal.");
+        setWhatNow("Nothing is charged until the proposal is stored and policy has read it.");
+        setWhyNow("The agent can only propose. Policy then allows, skips, or holds the case.");
         const next = await proposeCase(current.caseId);
         setProposal(next);
         current = await recordAgentProposal(current.caseId, next);
@@ -265,7 +279,7 @@ export function RecoveryDesk() {
 
       setPhase("detect");
       setTicker("Failure detected — opening recovery case.");
-      setWhatNow("Webhook / simulate event created a RecoveryCase.");
+      setWhatNow("This failure opened a recovery case.");
       setWhyNow("Money is at risk. We diagnose by failure reason before any charge.");
       pushLog({
         clock: "T+0",
@@ -290,7 +304,7 @@ export function RecoveryDesk() {
       setWhyNow(
         probability == null
           ? "Without a score we still follow the reason playbook safely."
-          : "Same NSF reason can get different chase intensity for good vs bad payers.",
+          : "The same shortfall can get a different chase depending on who is likely to pay.",
       );
       pushLog({
         clock: "T+0",
@@ -355,8 +369,8 @@ export function RecoveryDesk() {
         }
 
         setTicker(`One execute · step ${next.step}: ${next.actionType.split("_").join(" ")}`);
-        setWhatNow(`Calling Java /execute once for step ${next.step}.`);
-        setWhyNow("Wait is simulated. Java runs this step a single time, then we move to the next step.");
+        setWhatNow(`Running this playbook step once.`);
+        setWhyNow("The wait is shortened so the next step can run. Each step executes once, then we move on.");
 
         const doneBefore = completedSteps(current).size;
         try {
@@ -366,7 +380,7 @@ export function RecoveryDesk() {
             setRunningStep(null);
             setWaitClock(null);
             setTicker("Stopped — policy guard must approve this case.");
-            setWhatNow("PolicyEngine blocked execute. The human-in-the-loop person reviews it next.");
+            setWhatNow("Policy held this case. The other person reviews it next.");
             setWhyNow(`${current.policy.reason} · waiting in the policy queue.`);
             setOutcomeNow({
               label: "Waiting for approval",
@@ -388,8 +402,8 @@ export function RecoveryDesk() {
           setWhatNow(message);
           setWhyNow(
             message.includes("no playbook")
-              ? "This reason has no 4-step execute path yet. Use insufficient_funds or risk-failed for the pitch."
-              : "Backend rejected the step.",
+              ? "This failure type does not have a full playbook path yet. Open an insufficient-funds or risk case instead."
+              : "The recovery step was rejected.",
           );
           setRunningStep(null);
           setWaitClock(null);
@@ -405,7 +419,7 @@ export function RecoveryDesk() {
               label: "Skipped — no repeat",
               tone: "stop" as const,
               detail:
-                "Java did not advance this step (policy/ML skip). Stopping so T+96h does not run again.",
+                "This step was skipped. Stopping here so the later window does not run again.",
             };
         setOutcomeNow(outcome);
         setRunningStep(null);
@@ -504,101 +518,87 @@ export function RecoveryDesk() {
               })
             }
           >
-            {busy === "all" ? "Creating pack…" : "Create all 8 issues"}
+            {busy === "all" ? "Creating pack…" : "Create all failure types"}
           </button>
         </div>
         {error ? <div className="err">{error}</div> : null}
+        <PlatformStrip status={platform} />
 
-        <section className="ops-strip">
-          <div className="ops-head">
-            <div>
-              <p className="pill">Ops patterns · last 6h</p>
-              <strong>{briefing?.summary ?? "Agent service not reachable on :8002 — SQL briefing skipped."}</strong>
-            </div>
-            <div className="safety-chips">
-              <span className="chip">actions_available: propose only</span>
-              {briefing?.fallbackUsed ? <span className="chip warn">fallback_used</span> : null}
-              {briefing ? <span className="chip">{briefing.model}</span> : null}
-            </div>
-          </div>
-          {briefing && briefing.patterns.length === 0 ? (
-            <p className="muted">No recurring spikes in this window.</p>
-          ) : null}
-          {briefing?.patterns.map((item) => (
-            <article key={`${item.pattern}-${item.where}`} className={`ops-alert ${item.severity.toLowerCase()}`}>
-              <span className="badge">{item.severity}</span>
+        {briefing && briefing.patterns.length > 0 ? (
+          <section className="ops-strip">
+            <div className="ops-head">
               <div>
-                <strong>{item.pattern.replaceAll("_", " ")}</strong>
-                <p>
-                  {item.why} · {item.proposedSolution}
-                </p>
-                <span className="muted">
-                  {item.where} · {item.count} cases
-                </span>
+                <p className="pill">What is repeating</p>
+                <strong>{briefing.summary}</strong>
               </div>
-            </article>
-          ))}
-        </section>
+              <div className="safety-chips">
+                <span className="chip">Proposes only</span>
+                <span className="chip">Cannot charge</span>
+                {briefing.fallbackUsed ? <span className="chip warn">Using fallback rules</span> : null}
+              </div>
+            </div>
+            {briefing.patterns.map((item) => (
+              <article key={`${item.pattern}-${item.where}`} className={`ops-alert ${item.severity.toLowerCase()}`}>
+                <span className="badge">{item.severity}</span>
+                <div>
+                  <strong>{item.pattern.replaceAll("_", " ")}</strong>
+                  <p>
+                    {item.why} · {item.proposedSolution}
+                  </p>
+                  <span className="muted">
+                    {item.where} · {item.count} cases
+                  </span>
+                </div>
+              </article>
+            ))}
+          </section>
+        ) : null}
 
-        <section className="hmac-strip">
-          <div className="ops-head">
-            <div>
-              <p className="pill">Live signed intake · POST /webhooks/razorpay</p>
-              <strong>
-                {inbox == null
-                  ? "Inbox not loaded yet."
-                  : inbox.razorpayCount > 0
-                    ? `${inbox.razorpayCount} HMAC event${inbox.razorpayCount === 1 ? "" : "s"} from Razorpay Test Mode.`
-                    : inbox.signedCount > 0
-                      ? `${inbox.signedCount} HMAC event${inbox.signedCount === 1 ? "" : "s"} — signed locally, not from Razorpay servers.`
-                      : "No HMAC-signed webhook yet. Desk buttons skip this path."}
-              </strong>
-            </div>
-            <div className="safety-chips">
-              <span className="chip">HMAC-SHA256</span>
-              {inbox ? <span className="chip">signed {inbox.signedCount}</span> : null}
-              {inbox?.razorpayCount ? <span className="chip go">razorpay {inbox.razorpayCount}</span> : null}
-            </div>
-          </div>
-          {inbox && inbox.events.length === 0 ? (
-            <p className="muted">
-              Run <code>scripts/razorpay/prove-live-webhook.ps1</code>, then Send Test Webhook in the
-              Razorpay dashboard or fail the payment link. This strip polls every 4s.
-            </p>
-          ) : null}
-          {inbox?.events.slice(0, 4).map((item) => (
-            <article
-              key={item.eventId}
-              className={`hmac-row ${item.origin === "RAZORPAY" ? "live" : item.signatureVerified ? "signed" : ""}`}
-            >
-              <span className={`badge ${item.origin === "RAZORPAY" ? "go" : ""}`}>
-                {item.origin === "RAZORPAY"
-                  ? "Razorpay HMAC"
-                  : item.origin === "LOCAL_SCRIPT"
-                    ? "Local HMAC"
-                    : "Desk simulate"}
-              </span>
+        {inbox && inbox.signedCount > 0 ? (
+          <section className="hmac-strip">
+            <div className="ops-head">
               <div>
-                <strong>{item.eventType}</strong>
-                <p>
-                  {item.eventId}
-                  {item.caseId ? ` · case ${item.caseId.slice(0, 14)}…` : ""}
-                  {item.reason ? ` · ${item.reason}` : ""}
-                </p>
-                <span className="muted">
-                  {item.accountId ?? "no account"} · signature {item.signatureVerified ? "ok" : "skipped"} ·{" "}
-                  {item.processed ? "ingested" : "waiting on Kafka"}
-                </span>
+                <p className="pill">Signed payment events</p>
+                <strong>
+                  {inbox.razorpayCount > 0
+                    ? `${inbox.razorpayCount} verified event${inbox.razorpayCount === 1 ? "" : "s"} from Razorpay.`
+                    : `${inbox.signedCount} verified event${inbox.signedCount === 1 ? "" : "s"} signed locally.`}
+                </strong>
               </div>
-            </article>
-          ))}
-        </section>
+              <div className="safety-chips">
+                <span className="chip">Signature checked</span>
+                {inbox.razorpayCount ? <span className="chip go">Razorpay {inbox.razorpayCount}</span> : null}
+              </div>
+            </div>
+            {inbox.events
+              .filter((item) => item.origin === "RAZORPAY" || item.origin === "LOCAL_SCRIPT" || item.signatureVerified)
+              .slice(0, 4)
+              .map((item) => (
+              <article
+                key={item.eventId}
+                className={`hmac-row ${item.origin === "RAZORPAY" ? "live" : item.signatureVerified ? "signed" : ""}`}
+              >
+                <span className={`badge ${item.origin === "RAZORPAY" ? "go" : ""}`}>
+                  {item.origin === "RAZORPAY"
+                    ? "Razorpay signed"
+                    : item.origin === "LOCAL_SCRIPT"
+                      ? "Signed locally"
+                      : "Opened here"}
+                </span>
+                <div>
+                  <strong>{item.eventType.replaceAll(".", " ")}</strong>
+                  <p>{item.reason ? item.reason.replaceAll("_", " ") : "Payment event"}</p>
+                  <span className="muted">
+                    {item.signatureVerified ? "Signature verified" : "Opened from this desk"}
+                    {item.processed ? " · ingested" : " · waiting"}
+                  </span>
+                </div>
+              </article>
+            ))}
+          </section>
+        ) : null}
 
         <section>
-          <p className="muted" style={{ marginBottom: "0.5rem" }}>
-            Pitch tip: create <strong>insufficient_funds</strong> (retries fail → pay link) or{" "}
-            <strong>risk-failed</strong> (blocked).
-          </p>
           <div className="create-grid">
             {scenarios.map((scenario) => (
               <button
@@ -613,9 +613,9 @@ export function RecoveryDesk() {
                     setLog([]);
                     setOutcomeNow(null);
                     setWaitClock(null);
-                    setTicker("Case created. Ask the agent, or start the recovery process.");
+                    setTicker("Case created. Ask the agent, or start recovery.");
                     setWhatNow("Case is ready.");
-                    setWhyNow("Agent proposes only. Start still runs Java execute.");
+                    setWhyNow("The agent proposes. Start is what actually runs the playbook.");
                     setProposal(null);
                     const created = await createIssue(scenario.slug);
                     await refresh(created.caseId);
@@ -635,10 +635,12 @@ export function RecoveryDesk() {
           <section className="panel">
             <div className="panel-head">
               <h2>Open issues</h2>
-              <span className="muted">{cases.length} demo cases</span>
+              <span className="muted">
+                {cases.length} {cases.length === 1 ? "case" : "cases"}
+              </span>
             </div>
             {cases.length === 0 ? (
-              <p className="empty">No demo cases yet. Create one above.</p>
+              <p className="empty">No open cases yet. Create one above.</p>
             ) : (
               <div className="rows">
                 {cases.map((row) => (
@@ -653,9 +655,9 @@ export function RecoveryDesk() {
                         setLog([]);
                         setOutcomeNow(null);
                         setWaitClock(null);
-                        setTicker("Case selected. Ask the agent, or start the recovery process.");
-                        setWhatNow("Ready to simulate.");
-                        setWhyNow("Agent proposes. Java executes.");
+                        setTicker("Case selected. Ask the agent, or start recovery.");
+                        setWhatNow("Ready to run.");
+                        setWhyNow("The agent proposes. Start is what actually runs the playbook.");
                         const opened = await getCase(row.caseId);
                         setProposal(proposalFromAudit(opened));
                         setSelectedId(row.caseId);
@@ -691,7 +693,7 @@ export function RecoveryDesk() {
               <span className="muted">{detail ? progressLabel(detail) : "—"}</span>
             </div>
             {!detail ? (
-              <p className="empty">Select a case to start the live demo.</p>
+              <p className="empty">Select a case to start recovery.</p>
             ) : (
               <div className="detail">
                 <div className="pipeline">
@@ -729,12 +731,12 @@ export function RecoveryDesk() {
                   <div className="wait-card">
                     <div>
                       <p className="pill" style={{ color: "var(--navy)" }}>
-                        Simulated real-world wait
+                        Waiting for the next window
                       </p>
                       <strong className="display" style={{ fontSize: "1.35rem" }}>
                         {waitClock}
                       </strong>
-                      <span className="muted">Compressed for the demo — not a real 48h pause.</span>
+                      <span className="muted">Wait shortened so the next step can run.</span>
                     </div>
                     <div className="wait-ring" style={{ ["--p" as string]: `${waitPct}%` }}>
                       <span>{waitPct}%</span>
@@ -756,7 +758,7 @@ export function RecoveryDesk() {
                     onClick={() => void startLiveProcess()}
                   >
                     {busy === "live"
-                      ? "Simulating recovery…"
+                      ? "Running recovery…"
                       : detail.status === "RECOVERED"
                         ? "Process finished"
                         : "Start recovery process"}
@@ -801,16 +803,16 @@ export function RecoveryDesk() {
                 {detail.policy ? (
                   <div className={`policy-card ${detail.policy.verdict.toLowerCase()}`}>
                     <p className="pill" style={{ color: "var(--navy)" }}>
-                      Policy engine
+                      Policy
                     </p>
                     <strong>
                       {detail.policy.reason === "HUMAN_OVERRIDE"
-                        ? "Policy guard approved — execute allowed"
+                        ? "Signed off — recovery can continue"
                         : detail.policy.verdict === "BLOCK"
-                          ? "Block execute — send to policy queue"
+                          ? "Held — waiting for the other person"
                           : detail.policy.verdict === "SKIP_RETRY"
-                            ? "Skip extra retries — playbook may continue"
-                            : "Allow playbook execute"}
+                            ? "Skipped extra retries — playbook may continue"
+                            : "Allowed — playbook can run"}
                     </strong>
                     <p>
                       {actionWords(detail.policy.recommendedAction || "DELAYED_RETRY")} · {detail.policy.reason}
@@ -854,14 +856,13 @@ export function RecoveryDesk() {
                       </div>
                     </dl>
                     <div className="safety-chips">
-                      <span className="chip">actions_available: {(proposal.actionsAvailable ?? ["propose"]).join(", ")}</span>
-                      <span className="chip">executes: {String(proposal.executes)}</span>
-                      {proposal.fallbackUsed ? <span className="chip warn">fallback_used</span> : null}
-                      <span className="chip">{proposal.model}</span>
+                      <span className="chip">Proposes only</span>
+                      <span className="chip">Cannot charge</span>
+                      {proposal.fallbackUsed ? <span className="chip warn">Using fallback rules</span> : null}
                     </div>
                   </div>
                 ) : (
-                  <p className="muted">Ask agent for a diagnosis. It cannot charge — Java / Start still executes.</p>
+                  <p className="muted">Ask the agent for a diagnosis. It cannot charge — Start is what runs the playbook.</p>
                 )}
 
                 <div className="playbook">
@@ -894,7 +895,7 @@ export function RecoveryDesk() {
                 <div className="story">
                   <strong>Story log</strong>
                   {log.length === 0 ? (
-                    <span className="muted">Events appear here as the simulation runs.</span>
+                    <span className="muted">Events appear here as recovery runs.</span>
                   ) : (
                     log.map((line) => (
                       <div key={line.id} className={`story-line ${line.tone}`}>
@@ -911,7 +912,7 @@ export function RecoveryDesk() {
                 <div className="audit">
                   <strong>Audit so far</strong>
                   {(detail.audit ?? []).length === 0 ? (
-                    <span className="muted">No audit rows yet — Ask agent stores AGENT_PROPOSE, then policy writes BLOCK / SKIP.</span>
+                    <span className="muted">No events yet. Asking the agent writes a proposal; policy then allows, skips, or holds.</span>
                   ) : (
                     [...detail.audit].reverse().map((line) => (
                       <div key={line.eventId} className={`audit-line ${line.eventType.startsWith("POLICY_") ? "policy" : ""}`}>

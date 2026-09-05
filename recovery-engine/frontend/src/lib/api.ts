@@ -9,6 +9,7 @@ import type {
   DemoAccount,
   DeskRole,
   OpsBriefing,
+  PlatformStatus,
   Scenario,
   Session,
   SimulateResult,
@@ -66,6 +67,10 @@ export function adminDashboard() {
 
 export function adminBenchmark() {
   return readJson<BenchmarkReport>("/api/admin/benchmark");
+}
+
+export function adminPlatform() {
+  return readJson<PlatformStatus>("/api/admin/platform");
 }
 
 export function createDeskUser(payload: {

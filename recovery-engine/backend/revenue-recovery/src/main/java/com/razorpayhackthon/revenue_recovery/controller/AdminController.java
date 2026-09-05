@@ -5,11 +5,13 @@ import com.razorpayhackthon.revenue_recovery.auth.RequireRole;
 import com.razorpayhackthon.revenue_recovery.dto.auth.AssignRoleRequest;
 import com.razorpayhackthon.revenue_recovery.dto.auth.CreateUserRequest;
 import com.razorpayhackthon.revenue_recovery.dto.auth.DashboardSnapshot;
+import com.razorpayhackthon.revenue_recovery.dto.auth.PlatformStatus;
 import com.razorpayhackthon.revenue_recovery.dto.auth.UserRow;
 import com.razorpayhackthon.revenue_recovery.enums.DeskRole;
 import com.razorpayhackthon.revenue_recovery.service.auth.AuthService;
 import com.razorpayhackthon.revenue_recovery.service.auth.BenchmarkService;
 import com.razorpayhackthon.revenue_recovery.service.auth.DashboardService;
+import com.razorpayhackthon.revenue_recovery.service.auth.PlatformStatusService;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.MediaType;
@@ -28,12 +30,17 @@ public class AdminController {
 	private final DashboardService dashboardService;
 	private final AuthService authService;
 	private final BenchmarkService benchmarkService;
+	private final PlatformStatusService platformStatusService;
 
 	public AdminController(
-			DashboardService dashboardService, AuthService authService, BenchmarkService benchmarkService) {
+			DashboardService dashboardService,
+			AuthService authService,
+			BenchmarkService benchmarkService,
+			PlatformStatusService platformStatusService) {
 		this.dashboardService = dashboardService;
 		this.authService = authService;
 		this.benchmarkService = benchmarkService;
+		this.platformStatusService = platformStatusService;
 	}
 
 	@GetMapping(path = "/dashboard", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -44,6 +51,11 @@ public class AdminController {
 	@GetMapping(path = "/benchmark", produces = MediaType.APPLICATION_JSON_VALUE)
 	public Map<String, Object> benchmark() {
 		return benchmarkService.latest();
+	}
+
+	@GetMapping(path = "/platform", produces = MediaType.APPLICATION_JSON_VALUE)
+	public PlatformStatus platform() {
+		return platformStatusService.snapshot();
 	}
 
 	@GetMapping(path = "/users", produces = MediaType.APPLICATION_JSON_VALUE)

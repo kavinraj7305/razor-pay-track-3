@@ -2,6 +2,12 @@
 
 Revenue recovery platform: Razorpay webhook intake, ML scoring, and LangGraph recovery agents.
 
+**On camera, say this and stop:**
+
+> Playbook recovered ₹5.30L. Playbook + P + policy recovered ₹5.21L. We skipped 45 weak retries, cut 36 doomed chases, avoided ₹45,851 of chase that never comes back, and gave up 9 people who later paid.
+
+Do not soften that into “AI improved recovery.” Full say / don’t-say card: [PITCH.md](./PITCH.md). Skip threshold stays 0.25 — do not retune it on this batch.
+
 ```
 recovery-engine/
 ├── backend/revenue-recovery/   Spring Boot 4.1 / Java 21 (existing domain model)

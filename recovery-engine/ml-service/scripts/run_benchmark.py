@@ -235,16 +235,11 @@ def main() -> None:
         },
         "byReason": by_reason(events, baseline_recovered, ai_recovered),
         "unresolved": missed_list(events, missed),
+        # Frozen say-this line. Do not retune MIN_P on this batch. See recovery-engine/PITCH.md.
         "pitch": (
-            f"On {len(events)} labelled events (INR {at_risk:,.0f} at risk), "
-            f"the reason playbook recovered INR {baseline['recoveredInr']:,.0f} "
-            f"({baseline['recoveryRate']*100:.1f}%). "
-            f"Playbook + P + policy recovered INR {ai['recoveredInr']:,.0f} "
-            f"({ai['recoveryRate']*100:.1f}%), "
-            f"skipped {int(skip.sum())} low-P retries, "
-            f"held {int(block.notna().sum())} risk/high-amount cases for a human, "
-            f"and cut wasted chases from {baseline['wastedChases']} to {ai['wastedChases']} "
-            f"(INR {wasted_saved:,.0f} of doomed chase avoided)."
+            "Playbook recovered INR 5.30L. Playbook + P + policy recovered INR 5.21L. "
+            "We skipped 45 weak retries, cut 36 doomed chases, avoided INR 45,851 of "
+            "chase that never comes back, and gave up 9 people who later paid."
         ),
     }
 

@@ -224,7 +224,11 @@ Last run (seed 42, merchant `acc_syn_training`):
 | Wasted chases | 253 · ₹8,79,812 that never came back | 217 · ₹8,33,961 |
 | Missed eventual payers | 4 | 13 |
 
-What changed: **45** low-P retries skipped, **50** risk/high-amount cases held for a human, **36** fewer wasted chases, **₹45,851** of doomed chase avoided. Recovered rupees fell **₹8,393** (−1.6%). That is honest — the model refused some people who later paid.
+**Say this (verbatim). Do not soften it:**
+
+> Playbook recovered ₹5.30L. Playbook + P + policy recovered ₹5.21L. We skipped 45 weak retries, cut 36 doomed chases, avoided ₹45,851 of chase that never comes back, and gave up 9 people who later paid.
+
+Do not say “AI improved recovery.” Skip threshold stays **0.25** — do not retune it on this batch. Card: `PITCH.md`.
 
 Oracle ceiling if every `paid_eventually` label came back: ₹5,56,179 (20.2% of ₹27,59,313 at risk). Risk is not auto-chased on either path.
 
@@ -1041,7 +1045,7 @@ Judge questions we can answer live:
 | Ollama down?          | `fallback_used: true` on the desk                            |
 | Did money come back?  | Captured simulate → `RECOVERED` + audit                      |
 | Show me HMAC firing   | Desk **Razorpay HMAC** chip + `prove-live-webhook.ps1`       |
-| What is the ₹ number? | Dashboard scoreboard: ₹5.30L playbook vs ₹5.21L AI, ₹45,851 doomed chase avoided |
+| What is the ₹ number? | Say the PITCH.md sentence. Do not say AI improved recovery. |
 
 
 ---

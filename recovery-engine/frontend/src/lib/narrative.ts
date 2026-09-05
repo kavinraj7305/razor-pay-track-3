@@ -20,7 +20,7 @@ export function storyFor(reason: string, step: PlaybookStep, probability: number
         waitMs: 1600,
         clockLabel: "T+48h · once",
         what: "Single delayed retry on the same instrument. Not a continuous loop.",
-        why: `NSF is often temporary. Playbook schedules one attempt at ~48h. P(recovery)=${p}.`,
+        why: `A shortfall is often temporary. The playbook waits for payday, then tries once. P(recovery)=${p}.`,
       };
     }
     if (step.step === 2) {

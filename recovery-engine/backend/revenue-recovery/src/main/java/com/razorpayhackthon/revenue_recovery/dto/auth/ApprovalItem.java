@@ -11,4 +11,16 @@ public record ApprovalItem(
 		String recommendedAction,
 		String agentDiagnosis,
 		String agentReasoning,
-		boolean escalate) {}
+		boolean escalate,
+		String priority,
+		String source,
+		String sourceId,
+		String customerId,
+		String merchantId,
+		String playbookAction,
+		Double mlScore,
+		Double confidence,
+		boolean deviatesFromPlaybook,
+		boolean fallbackUsed,
+		String agentModel,
+		boolean agentExecutes) {}

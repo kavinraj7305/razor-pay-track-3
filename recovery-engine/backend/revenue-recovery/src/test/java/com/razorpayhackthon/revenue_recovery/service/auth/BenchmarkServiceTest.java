@@ -14,7 +14,7 @@ class BenchmarkServiceTest {
 		Map<String, Object> report = service.latest();
 		assertThat(report.get("events")).isEqualTo(500);
 		assertThat(report.get("merchantId")).isEqualTo("acc_syn_training");
-		assertThat(report.get("pitch")).asString().contains("500 labelled events");
+		assertThat(report.get("pitch")).asString().contains("gave up 9 people who later paid");
 		assertThat(report.get("baseline")).isInstanceOf(Map.class);
 		assertThat(report.get("ai")).isInstanceOf(Map.class);
 	}

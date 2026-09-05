@@ -78,7 +78,7 @@ export default function LoginPage() {
         <div>
           <p className="pill">Two people</p>
           <h1>Sign in</h1>
-          <p>CEO runs the desk. One other person sits in the loop and signs off blocked cases.</p>
+          <p>The CEO runs recovery. One other person signs off cases that policy holds.</p>
         </div>
       </header>
       <div className="wrap login-wrap">
@@ -99,9 +99,7 @@ export default function LoginPage() {
               <p className="pill">{labelFor(account.role)}</p>
               <strong>{account.displayName}</strong>
               <span className="muted">{account.sees}</span>
-              <span className="muted">
-                {account.email} · {account.password}
-              </span>
+              <span className="muted">{account.email}</span>
             </button>
           ))}
         </div>
@@ -113,7 +111,7 @@ export default function LoginPage() {
           }}
         >
           <div className="panel-head">
-            <h2>Or type credentials</h2>
+            <h2>Sign in with email</h2>
           </div>
           <div className="form-grid">
             <label>
