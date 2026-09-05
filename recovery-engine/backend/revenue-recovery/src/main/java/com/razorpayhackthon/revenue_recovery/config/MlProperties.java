@@ -16,7 +16,7 @@ public class MlProperties {
 	/** Count of recovery_outcome rows required before we consult /predict. */
 	private long minLabelledOutcomes = 400;
 	/** Below this P, do not extra-retry if the customer also has enough history. */
-	private double considerMinProbability = 0.25;
+	private double considerMinProbability = 0.12;
 	/** This customer's own payment records required before we score or let P change the plan. */
 	private int minHistoryPaymentsToScore = 10;
 	/** Personal history needed before P can skip a retry. */

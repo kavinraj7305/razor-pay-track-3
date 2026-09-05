@@ -52,18 +52,63 @@ export function stepResult(status: string) {
   }
 }
 
-export function chanceLabel(value: number | null | undefined, scoreStatus?: string | null) {
-  if (scoreStatus === "LOW_DATA" || scoreStatus === "UNAVAILABLE" || value == null) {
+export function chanceLabel(value: number | null | undefined, _scoreStatus?: string | null) {
+  if (value == null || Number.isNaN(value)) {
     return null;
   }
   const pct = Math.round(value * 100);
   if (pct >= 60) {
-    return `${pct}% likely to pay`;
+    return `P(recovery) ${pct}% — likely to pay`;
   }
   if (pct >= 30) {
-    return `${pct}% chance they pay`;
+    return `P(recovery) ${pct}%`;
   }
-  return `${pct}% unlikely to pay`;
+  return `P(recovery) ${pct}% — too low to keep retrying`;
+}
+
+export function pickRecoveryChance(input: {
+  proposalScore?: number | null;
+  caseScore?: number | null;
+  actionNotes?: Array<string | null | undefined> | null;
+  audit?: Array<{ eventType?: string; details?: Record<string, unknown> | null }> | null;
+}): number | null {
+  const candidates = [input.proposalScore, input.caseScore];
+  for (const line of [...(input.audit ?? [])].reverse()) {
+    const details = line.details;
+    if (!details) {
+      continue;
+    }
+    candidates.push(
+      asChance(details.recoveryProbability),
+      asChance(details.mlScore),
+      chanceFromNote(typeof details.reasoning === "string" ? details.reasoning : null),
+      chanceFromNote(typeof details.reason === "string" ? details.reason : null),
+    );
+  }
+  for (const note of input.actionNotes ?? []) {
+    candidates.push(chanceFromNote(note));
+  }
+  return candidates.find((value): value is number => value != null) ?? null;
+}
+
+function chanceFromNote(note: string | null | undefined): number | null {
+  if (!note) {
+    return null;
+  }
+  const equals = note.match(/P(?:\(recovery\))?\s*=\s*([0-9.]+)/i);
+  if (equals) {
+    return asChance(equals[1]);
+  }
+  const percent = note.match(/P\(recovery\)[^\d]*(\d+)\s*%/i);
+  return percent ? asChance(Number(percent[1]) / 100) : null;
+}
+
+function asChance(value: unknown): number | null {
+  if (value == null || value === "") {
+    return null;
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 export function stepNote(note: string) {
@@ -139,24 +184,28 @@ function skipWhy(input: {
   mlScore?: number | null;
 }) {
   const note = (input.actionNote ?? "").toLowerCase();
-  const agentSkip =
-    input.recommendedAction === "SKIP_EXTRA_RETRY" || input.policyReason === "AGENT_SKIP_EXTRA_RETRY";
-  const javaScoreUsed = input.scoreStatus === "SCORED" && input.mlScore != null;
-  const p = input.mlScore != null ? `${Math.round(input.mlScore * 100)}%` : null;
-
-  if (note.includes("ml skip") || (javaScoreUsed && input.policyVerdict === "SKIP_RETRY" && !agentSkip)) {
-    return `Why: we already ran the first retry. P(recovery)${p ? ` was ${p}` : " was low"}, so extra waits at T+96h / T+5d were not run.`;
-  }
-
-  if (agentSkip || note.includes("agent_skip") || note.includes("after first retry") || note.includes("policy")) {
-    return javaScoreUsed && p
-      ? `Why: first retry already ran. Chance they pay was ${p}, so extra silent retries were skipped.`
-      : "Why: first retry already ran. Extra silent retries were skipped so we do not loop the same card.";
-  }
+  const extraRetry = input.actionType.includes("RETRY") && input.step > 1;
+  const skippedExtras =
+    extraRetry ||
+    note.includes("skip extra") ||
+    note.includes("low p") ||
+    note.includes("after first retry") ||
+    input.recommendedAction === "SKIP_EXTRA_RETRY" ||
+    input.policyVerdict === "SKIP_RETRY" ||
+    input.policyReason === "AGENT_SKIP_EXTRA_RETRY";
+  const p =
+    input.mlScore != null && Number.isFinite(input.mlScore) ? `${Math.round(input.mlScore * 100)}%` : null;
 
   if (input.failureReason.toLowerCase().includes("card_expired") || input.failureReason.toLowerCase().includes("expired")) {
     return "Why: this card is dead. A retry on it cannot succeed.";
   }
+
+  if (skippedExtras) {
+    return p
+      ? `Why: first retry already ran. P(recovery) was ${p} — too low to keep charging the same card, so this extra silent retry was skipped.`
+      : "Why: first retry already ran. P(recovery) was too low to keep charging the same card, so this extra silent retry was skipped.";
+  }
+
   return "Why: this step was not run so it does not repeat.";
 }
 
@@ -214,6 +263,29 @@ const REASON_BLURBS: Record<string, string> = {
   gateway_technical: "The bank or gateway hiccuped. One short wait, then one retry.",
   bank_technical: "The bank had a technical miss. Wait once, then try again.",
 };
+
+export function howThisRuns(reason: string) {
+  const key = reason.toLowerCase();
+  if (key.includes("insufficient")) {
+    return "Start always runs the first payday retry — that try is cheap. Extra silent retries are skipped only when P(recovery) is below 12%. High chance they pay means we keep chasing.";
+  }
+  if (key.includes("risk") || key.includes("cancelled")) {
+    return "Start does not charge. This sits for the other person. You cannot skip that hold.";
+  }
+  if (key.includes("card_expired") || key.includes("invalid_vpa") || key.includes("checkout")) {
+    return "Start does not retry the dead or abandoned method. It sends one payment link, then at most a couple of reminders.";
+  }
+  if (key.includes("invoice")) {
+    return "Start chases a promise to pay. It does not silent-retry a card.";
+  }
+  if (key.includes("subscription.pending")) {
+    return "Start retries the mandate once, then may skip extra retries if chance they pay is low.";
+  }
+  if (key.includes("subscription.halted")) {
+    return "Start sends a link to update the mandate. Retries already ran out.";
+  }
+  return "Start runs the reason plan one step at a time. The first required step always runs. Extra silent retries can be skipped after that.";
+}
 
 export function reasonBlurb(reason: string) {
   const key = reason.toLowerCase();

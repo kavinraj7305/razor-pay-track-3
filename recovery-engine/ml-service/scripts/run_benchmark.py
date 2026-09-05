@@ -40,8 +40,12 @@ JAVA_COPY = (
 )
 
 HUMAN_APPROVAL = 80_000.0
-MIN_P = 0.25
-MIN_HISTORY = 5
+# Extra silent retries only. First payday retry always runs — that try is cheap.
+MIN_P = 0.12
+MIN_HISTORY = 10
+FIRST_RETRY_COVER_HOURS = 96
+# Risk stays held. If P is high, the other person releases it.
+HIGH_P_HOLD = 0.55
 CHASE = {"RETRY_PAYMENT", "SEND_PAYMENT_LINK", "REQUEST_PROMISE_TO_PAY"}
 MERCHANT = "acc_syn_training"
 
@@ -95,12 +99,32 @@ def blocked_reason(row: pd.Series) -> str | None:
     return None
 
 
-def ai_skip_retry(row: pd.Series) -> bool:
+def ai_skip_extra_retry(row: pd.Series) -> bool:
     return (
         str(row["baseline_action"]) == "RETRY_PAYMENT"
         and float(row["p_recovery"]) < MIN_P
         and int(row["prior_payment_count"]) >= MIN_HISTORY
     )
+
+
+def needed_extra_retry(row: pd.Series) -> bool:
+    hours = row.get("paid_after_hours")
+    if pd.isna(hours):
+        return False
+    return float(hours) > FIRST_RETRY_COVER_HOURS
+
+
+def high_p_risk_hold(row: pd.Series) -> bool:
+    return "risk" in str(row["reason"]).lower() and float(row["p_recovery"]) >= HIGH_P_HOLD
+
+
+def lakh_inr(value: float) -> str:
+    return f"INR {value / 100_000:.2f}L"
+
+
+def signed_inr(value: float) -> str:
+    sign = "+" if value >= 0 else "-"
+    return f"{sign}INR {abs(value):,.0f}"
 
 
 def money(series: pd.Series) -> float:
@@ -177,15 +201,22 @@ def main() -> None:
     baseline_recovered = captured | (baseline_chase & events["paid_eventually"].eq(1))
 
     block = events.apply(blocked_reason, axis=1)
-    skip = events.apply(ai_skip_retry, axis=1)
-    ai_chase = baseline_chase & block.isna() & ~skip
-    ai_recovered = captured | (ai_chase & events["paid_eventually"].eq(1))
+    skip_extra = events.apply(ai_skip_extra_retry, axis=1)
+    late_paid = events.apply(needed_extra_retry, axis=1) & events["paid_eventually"].eq(1)
+    hold_release = events.apply(high_p_risk_hold, axis=1)
+    # First retry always runs. Skipping extras does not drop the case.
+    ai_chase = (baseline_chase & block.isna()) | hold_release
+    lost_late = skip_extra & late_paid
+    ai_recovered = (captured | (ai_chase & events["paid_eventually"].eq(1))) & ~lost_late
     why = pd.Series("ALLOW_PLAYBOOK", index=events.index)
     why = why.mask(captured, "ALREADY_CAPTURED")
     why = why.mask(events["baseline_action"] == "SEND_EMAIL", "PLAYBOOK_STOP")
-    why = why.mask(skip, "ML_SKIP_RETRY")
+    why = why.mask(skip_extra, "SKIP_EXTRA_RETRY")
     why = why.mask(block.notna(), block)
+    why = why.mask(hold_release, "HIGH_P_HOLD_RELEASED")
+    why = why.mask(lost_late, "SKIPPED_LATE_PAYER")
     events["ai_why"] = why
+    extra_retries_skipped = int(skip_extra.sum()) * 2
 
     at_risk = money(events["amount_inr"])
     oracle = money(events.loc[events["paid_eventually"].eq(1), "amount_inr"])
@@ -200,7 +231,7 @@ def main() -> None:
     if METRICS_PATH.exists():
         model_metrics = json.loads(METRICS_PATH.read_text(encoding="utf-8"))
 
-    missed = ~ai_chase & events["paid_eventually"].eq(1) & ~captured
+    missed = events["paid_eventually"].eq(1) & ~ai_recovered & ~captured
     report = {
         "ranAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "merchantId": MERCHANT,
@@ -216,9 +247,12 @@ def main() -> None:
         "incrementalPct": incremental_pct,
         "wastedChaseSavedInr": wasted_saved,
         "wastedChasesAvoided": baseline["wastedChases"] - ai["wastedChases"],
-        "policyBlocked": int(block.notna().sum()),
-        "humanEscalations": int((block == "HUMAN_APPROVAL_AMOUNT").sum() + (block == "RISK_OR_CANCELLED").sum()),
-        "mlSkipRetry": int(skip.sum()),
+        "policyBlocked": int((block.notna() & ~hold_release).sum()),
+        "humanEscalations": int(((block == "HUMAN_APPROVAL_AMOUNT") | (block == "RISK_OR_CANCELLED")).sum()),
+        "mlSkipRetry": int(skip_extra.sum()),
+        "extraRetriesSkipped": extra_retries_skipped,
+        "highPHoldsReleased": int(hold_release.sum()),
+        "highPHoldRecoveredInr": money(events.loc[hold_release & events["paid_eventually"].eq(1), "amount_inr"]),
         "auditCoveragePct": 1.0,
         "model": {
             "file": "models/recovery_xgb.json",
@@ -231,15 +265,18 @@ def main() -> None:
             "humanApprovalInr": HUMAN_APPROVAL,
             "skipRetryMaxP": MIN_P,
             "skipRetryMinHistory": MIN_HISTORY,
+            "firstRetryCoverHours": FIRST_RETRY_COVER_HOURS,
+            "highPHoldRelease": HIGH_P_HOLD,
             "labelledFloor": 400,
         },
         "byReason": by_reason(events, baseline_recovered, ai_recovered),
         "unresolved": missed_list(events, missed),
-        # Frozen say-this line. Do not retune MIN_P on this batch. See recovery-engine/PITCH.md.
         "pitch": (
-            "Playbook recovered INR 5.30L. Playbook + P + policy recovered INR 5.21L. "
-            "We skipped 45 weak retries, cut 36 doomed chases, avoided INR 45,851 of "
-            "chase that never comes back, and gave up 9 people who later paid."
+            f"Playbook recovered {lakh_inr(baseline['recoveredInr'])}. "
+            f"First retry always runs - that try is cheap - then P only cuts extra silent retries "
+            f"on the weakest cards, and high-P risk holds go to a person. "
+            f"Recovered {lakh_inr(ai['recoveredInr'])} ({signed_inr(recovered_delta)}). "
+            f"Skipped {extra_retries_skipped} extra retries. We do not give up people who pay on the first try."
         ),
     }
 

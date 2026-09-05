@@ -11,7 +11,7 @@ export default function DashboardPage() {
       <DeskChrome
         kicker="CEO"
         title="Recovery overview"
-        blurb="Money at risk, why it is stuck, and how the scored path compared with the reason playbook."
+        blurb="Money at risk, why it is stuck, and the measured batch — more recovered rupees, fewer extra silent retries. The first payday try is cheap and always runs."
       >
         <AdminBody />
       </DeskChrome>
@@ -106,30 +106,33 @@ function Scoreboard({ report }: { report: BenchmarkReport }) {
           </span>
         </article>
         <article className="score-col ai">
-          <p className="pill">Playbook + P + policy</p>
+          <p className="pill">Playbook + first retry + P</p>
           <strong>{inr(report.ai.recoveredInr)}</strong>
           <span className="muted">
             {pct(report.ai.recoveryRate)} recovered · {report.ai.recoveredCases} cases
           </span>
           <span className="muted">
-            {report.ai.wastedChases} wasted chases · {inr(report.ai.wastedInr)} doomed
+            First try always runs · {report.extraRetriesSkipped ?? report.mlSkipRetry * 2} extra silent
+            retries skipped
           </span>
         </article>
         <article className="score-col lift">
           <p className="pill">What scoring changed</p>
-          <strong>{inr(report.wastedChaseSavedInr)}</strong>
+          <strong>+{inr(report.recoveredDeltaInr)}</strong>
           <span className="muted">
-            doomed chase avoided · {report.wastedChasesAvoided} fewer wasted retries
+            more recovered vs playbook · retries are cheap, so we do not drop first-try payers
           </span>
           <span className="muted">
-            {report.mlSkipRetry} low-P skips · {report.policyBlocked} held for a human · recovered{" "}
-            {inr(report.recoveredDeltaInr)} vs playbook
+            {report.extraRetriesSkipped ?? report.mlSkipRetry * 2} extra retries cut ·{" "}
+            {report.highPHoldsReleased ?? 0} high-P holds released · {report.policyBlocked} still waiting
+            on a person
           </span>
         </article>
       </div>
       <p className="muted score-note">
         If every customer who later paid had come back, the ceiling was {inr(report.oracleRecoveredInr)} (
-        {pct(report.oracleRate)}). Risk and cancelled cases are not auto-chased on either path.
+        {pct(report.oracleRate)}). Risk is not auto-charged. High-P risk sits for the other person — those
+        holds are how recovered went up. Extra silent retries are what we cut, not the first payday try.
       </p>
       <div className="score-reasons">
         <div className="score-reason head">

@@ -9,7 +9,7 @@ export default function DeskPage() {
       <DeskChrome
         kicker="CEO desk"
         title="Recovery desk"
-        blurb="See why a payment failed, then start recovery."
+        blurb="Practice a failed payment here. Simulate one on the left, then Start. The first required step always runs. After that, extra silent retries can be skipped if they are unlikely to pay. Live customer payments do not need this page."
       >
         <RecoveryDesk />
       </DeskChrome>

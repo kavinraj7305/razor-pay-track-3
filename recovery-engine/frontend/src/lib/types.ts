@@ -195,6 +195,9 @@ export type BenchmarkReport = {
   policyBlocked: number;
   humanEscalations: number;
   mlSkipRetry: number;
+  extraRetriesSkipped?: number;
+  highPHoldsReleased?: number;
+  highPHoldRecoveredInr?: number;
   auditCoveragePct: number;
   model: {
     file: string;

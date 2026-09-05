@@ -47,7 +47,7 @@ def recommended_action(reason: str, amount_inr: float, probability: float, ml_av
         return "REQUEST_PROMISE_TO_PAY"
     if any(link in key for link in LINK_REASONS):
         return "SEND_PAYMENT_LINK"
-    if ml_available and any(retry in key for retry in RETRY_REASONS) and probability < 0.25:
+    if ml_available and any(retry in key for retry in RETRY_REASONS) and probability < 0.12:
         return "SKIP_EXTRA_RETRY"
     if any(retry in key for retry in RETRY_REASONS):
         return "DELAYED_RETRY"
@@ -100,7 +100,7 @@ def _why(
         return f"Stop rule for {reason}. Probability={probability:.2f} is not allowed to retry."
     if action == "SKIP_EXTRA_RETRY":
         return (
-            f"P(recovery)={probability:.2f} is below 0.25 for {reason}. "
+            f"P(recovery)={probability:.2f} is below 0.12 for {reason}. "
             f"EV={expected:.2f} INR. Propose skip extra retries; Java playbook still owns execute."
         )
     return (

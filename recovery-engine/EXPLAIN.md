@@ -186,16 +186,18 @@ The other person only sees cases that policy held.
 
 ## 14. Day 5 — the measured batch
 
-Real run. Seed 42. 500 labelled failures. At risk ₹27,59,313.
+Open `/dashboard`. Point at the three columns. Full spoken walk is [final-draft/09-recover-more.md](./final-draft/09-recover-more.md).
+
+Real run. Seed 42. 500 labelled failures. At risk ₹27,68,443.
+
+**First try always runs.** That try is cheap. P only cuts extra silent retries. High-P risk holds go to a person.
 
 Say this and stop:
 
-> Playbook recovered ₹5.30L. Playbook + P + policy recovered ₹5.21L. We skipped 45 weak retries, cut 36 doomed chases, avoided ₹45,851 of chase that never comes back, and gave up 9 people who later paid.
+> Playbook recovered ₹5.73L. First retry always runs — that try is cheap — then P only cuts extra silent retries on the weakest cards, and high-P risk holds go to a person. Recovered ₹5.86L (+₹12,472). Skipped 18 extra retries. We do not give up people who pay on the first try.
 
-Do not say “AI improved recovery.” Recovered rupees went slightly down. Doomed chase went down more.
-
-- Playbook: ₹5,29,677 (19.2%), 197 cases, 253 wasted chases
-- Playbook + P + policy: ₹5,21,284 (18.9%), 188 cases, 217 wasted chases
+- Playbook: ₹5,73,297 (21%), 200 cases, 250 wasted chases
+- First retry + P: ₹5,85,768 (21%), 202 cases, 18 extra retries cut, 2 high-P holds released
 - Model: ROC-AUC 0.70 — ranking helper, not a recovery engine
 
 ---

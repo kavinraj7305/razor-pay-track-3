@@ -98,12 +98,15 @@ public class RecoveryActionPlanService {
 		}
 		if ((policy.skipRetry() || gate.skipRetry())
 				&& recoveryCase.getStatus() != RecoveryCaseStatus.RECOVERED) {
+			String pLabel = gate.probability() == null
+					? ""
+					: " · P(recovery)=" + String.format("%.2f", gate.probability());
 			playbookRunner.skipUpcomingRetries(
 					recoveryCase,
 					playbookFor(recoveryCase),
 					policy.skipRetry()
-							? "After first retry · policy skip extra: " + policy.recommendedAction()
-							: "After first retry · low P(recovery) skip extra");
+							? "After first retry · policy skip extra: " + policy.recommendedAction() + pLabel
+							: "After first retry · low P(recovery) skip extra" + pLabel);
 		}
 		return getPlan(caseId);
 	}

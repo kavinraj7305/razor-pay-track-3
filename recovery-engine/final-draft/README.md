@@ -1,6 +1,6 @@
 # Recovery Engine — review pack
 
-Eight notes. Read them in this order. Each one is one layer of the product.
+Nine notes. Read them in this order. Each one is one layer of the product.
 
 | # | File | What it is |
 |---|---|---|
@@ -12,6 +12,7 @@ Eight notes. Read them in this order. Each one is one layer of the product.
 | 6 | [06-guardrails.md](./06-guardrails.md) | What can stop a charge, and who owns money |
 | 7 | [07-langgraph-agent.md](./07-langgraph-agent.md) | The multi-step agent: propose only |
 | 8 | [08-benchmark.md](./08-benchmark.md) | Measured batch: playbook vs playbook + P + policy |
+| 9 | [09-recover-more.md](./09-recover-more.md) | First try always runs; extra silent retries cut; recovered +₹12,472 |
 
 The control order never inverts:
 

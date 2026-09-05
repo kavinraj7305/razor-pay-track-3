@@ -345,6 +345,37 @@ button {
   max-width: 38rem;
 }
 
+.desk-teach {
+  max-width: 36rem;
+}
+
+.desk-teach h2 {
+  margin-bottom: 0.5rem;
+}
+
+.desk-teach p,
+.desk-hero .desk-teach-line {
+  margin: 0.4rem 0 0;
+  color: var(--ink);
+  line-height: 1.5;
+  max-width: 38rem;
+}
+
+.desk-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.desk-steps-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.73rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
 .desk-cases {
   list-style: none;
   margin: 0.85rem 0 0;
@@ -386,8 +417,18 @@ button {
 
 .desk-open {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.45rem;
   margin-top: 1.1rem;
+}
+
+.desk-open-label {
+  flex: 1 0 100%;
+  font-size: 0.73rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gold);
 }
 
 .desk-open select {
@@ -398,6 +439,25 @@ button {
   background: transparent;
   color: var(--ink);
   padding: 0.4rem 0;
+}
+
+.desk-open .desk-hint {
+  flex: 1 0 100%;
+}
+
+.desk-start {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  min-width: 9.5rem;
+}
+
+.desk-hero .desk-hint,
+.desk-start .desk-hint {
+  text-align: right;
+  max-width: 11rem;
+  color: var(--muted);
 }
 
 .desk-hero {

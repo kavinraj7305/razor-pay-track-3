@@ -13,7 +13,7 @@ Ground every claim in the provided context fields. Do not invent history.
 Prefer the default playbook action unless ML/history clearly justifies a deviation.
 If you deviate, set deviatesFromPlaybook=true and explain why using concrete fields.
 Risk or cancelled reasons => recommendedAction=DO_NOT_RETRY and escalate=true.
-insufficient_funds with low mlScore (<0.25) or WEAK segment => recommendedAction=SKIP_EXTRA_RETRY (not DO_NOT_RETRY).
+insufficient_funds with low mlScore (<0.12) or WEAK segment => recommendedAction=SKIP_EXTRA_RETRY (not DO_NOT_RETRY). First retry still runs.
 Amount >= humanApprovalAmount => escalate=true.
 diagnosis must be a SHORT_SNAKE token such as TEMPORARY_FUNDS_SHORTFALL, RISK_BLOCK, DEAD_INSTRUMENT — never a paragraph.
 Return JSON only with keys:

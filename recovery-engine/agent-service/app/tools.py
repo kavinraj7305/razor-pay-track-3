@@ -11,7 +11,7 @@ def get_policies() -> dict:
     return {
         "neverRetryReasons": ["payment_risk_check_failed", "payment_cancelled"],
         "humanApprovalAmount": settings.human_approval_amount,
-        "lowProbabilitySkipRetry": 0.25,
+        "lowProbabilitySkipRetry": 0.12,
         "agentCanExecute": False,
         "actionsAvailable": ["propose"],
     }

@@ -15,6 +15,8 @@ import {
   actionLabel,
   chanceLabel,
   explainStep,
+  howThisRuns,
+  pickRecoveryChance,
   prettyWords,
   reasonBlurb,
   scheduleWhen,
@@ -272,20 +274,30 @@ export function RecoveryDesk() {
     !finished &&
     (detail.playbook?.length ?? 0) > 0;
   const atRisk = cases.reduce((sum, row) => sum + Number(row.amountAtRisk ?? 0), 0);
-  const chance = detail
-    ? chanceLabel(detail.score?.recoveryProbability ?? detail.recoveryProbability, detail.score?.status ?? detail.scoreStatus)
+  const recoveryChance = detail
+    ? pickRecoveryChance({
+        proposalScore: proposal?.mlScore,
+        caseScore: detail.score?.recoveryProbability ?? detail.recoveryProbability,
+        actionNotes: (detail.actions ?? []).map((action) => action.note),
+        audit: detail.audit,
+      })
     : null;
+  const chance = chanceLabel(recoveryChance);
   const next = detail ? nextUseful(detail, proposal) : null;
-  const story = detail ? caseStory(detail, { held, finished, running, ticker, next, proposal }) : "";
+  const story = detail
+    ? caseStory(detail, { held, finished, running, ticker, next, proposal, recoveryChance })
+    : "";
 
   return (
     <div className="wrap desk-page">
       {error ? <p className="err">{error}</p> : null}
 
       <aside className="desk-side">
-        <h2>Cases</h2>
+        <h2>Practice cases</h2>
         <p className="desk-lede">
-          {cases.length === 0 ? "Nothing open yet." : `${cases.length} open · ${inr(atRisk)} at risk`}
+          {cases.length === 0
+            ? "Nothing open. Pick a failure and simulate it — a practice case appears on the right."
+            : `${cases.length} open · ${inr(atRisk)} at risk. Click one to read its plan.`}
         </p>
         {cases.length > 0 ? (
           <ul className="desk-cases">
@@ -328,7 +340,11 @@ export function RecoveryDesk() {
               });
             }}
           >
+            <label className="desk-open-label" htmlFor="desk-failure">
+              What failed
+            </label>
             <select
+              id="desk-failure"
               value={newSlug}
               disabled={busy !== null}
               aria-label="Failure type"
@@ -341,43 +357,56 @@ export function RecoveryDesk() {
               ))}
             </select>
             <button className="ghost-btn" type="submit" disabled={busy !== null || !newSlug}>
-              {busy === "new" ? "Opening…" : "Open case"}
+              {busy === "new" ? "Opening…" : "Simulate"}
             </button>
+            <p className="desk-hint">Creates a practice case. It does not charge anyone.</p>
           </form>
         ) : null}
       </aside>
 
       <section className="desk-case">
         {!detail ? (
-          <p className="desk-lede">Pick a case, or open a failed payment.</p>
+          <div className="desk-teach">
+            <h2>How to read this page</h2>
+            <p>1. Simulate a failed payment on the left. A case appears.</p>
+            <p>2. Press Start. The first required step always runs.</p>
+            <p>3. After that one try, if chance they pay is low, extra silent retries are skipped.</p>
+            <p>4. The last channel is usually a payment link — not another charge on the same card.</p>
+          </div>
         ) : (
           <>
             <header className="desk-hero">
               <div>
                 <h2>{prettyWords(detail.reason)}</h2>
                 <p>{reasonBlurb(detail.reason)}</p>
+                <p className="desk-teach-line">{howThisRuns(detail.reason)}</p>
                 <p className="desk-meta">
                   <strong>{inr(detail.amountAtRisk)}</strong>
                   <span>{held ? "Waiting for review" : finished ? "Finished" : statusLabel(detail.status)}</span>
                   {chance ? <span>{chance}</span> : null}
                 </p>
               </div>
-              <button
-                className={running ? "start-btn running" : "start-btn"}
-                type="button"
-                disabled={!canStart}
-                onClick={() => void startLiveProcess()}
-              >
-                {running
-                  ? "Running…"
-                  : detail.status === "RECOVERED"
-                    ? "Recovered"
-                    : held
-                      ? "Waiting"
-                      : finished
-                        ? "Finished"
-                        : "Start recovery"}
-              </button>
+              <div className="desk-start">
+                <button
+                  className={running ? "start-btn running" : "start-btn"}
+                  type="button"
+                  disabled={!canStart}
+                  onClick={() => void startLiveProcess()}
+                >
+                  {running
+                    ? "Running…"
+                    : detail.status === "RECOVERED"
+                      ? "Recovered"
+                      : held
+                        ? "Waiting"
+                        : finished
+                          ? "Finished"
+                          : "Start recovery"}
+                </button>
+                {canStart ? (
+                  <p className="desk-hint">Runs the first required step, then decides extras.</p>
+                ) : null}
+              </div>
             </header>
 
             <p className="desk-story">{story}</p>
@@ -392,6 +421,8 @@ export function RecoveryDesk() {
             ) : null}
 
             {(detail.playbook ?? []).length > 0 ? (
+              <>
+              <p className="desk-steps-label">The plan — when it would run, then what actually happened</p>
               <ol className="desk-steps">
                 {(detail.playbook ?? []).map((step) => {
                   const state = stepState(detail, step.step, runningStep);
@@ -408,7 +439,7 @@ export function RecoveryDesk() {
                     policyReason: detail.policy?.reason ?? null,
                     recommendedAction: proposal?.recommendedAction ?? detail.policy?.recommendedAction ?? null,
                     scoreStatus: detail.score?.status ?? detail.scoreStatus,
-                    mlScore: proposal?.mlScore ?? detail.score?.recoveryProbability ?? detail.recoveryProbability,
+                    mlScore: recoveryChance,
                   });
                   return (
                     <li key={step.step} className={state}>
@@ -425,6 +456,7 @@ export function RecoveryDesk() {
                   );
                 })}
               </ol>
+              </>
             ) : (
               <p className="desk-lede">No plan for this failure yet.</p>
             )}
@@ -460,6 +492,7 @@ function caseStory(
     ticker: string;
     next: string | null;
     proposal: CaseProposal | null;
+    recoveryChance: number | null;
   },
 ) {
   if (state.running) {
@@ -478,7 +511,9 @@ function caseStory(
     (action) => action.actionType === "SEND_PAYMENT_LINK" && action.status === "EXECUTED",
   );
   if (linkSent && skipped) {
-    return "We ran the first payday retry once. After that, chance they pay was too low for extra silent retries, so we sent a payment link.";
+    const p =
+      state.recoveryChance != null ? `P(recovery) was ${Math.round(state.recoveryChance * 100)}%` : "P(recovery) was too low";
+    return `We ran the first payday retry once. After that, ${p}, so extra silent retries were skipped and we sent a payment link.`;
   }
   if (linkSent) {
     return "We sent one payment link so they can pay with another method.";
@@ -509,13 +544,21 @@ function proposalFromAudit(detail: CaseDetail | null): CaseProposal | null {
     defaultPlaybookAction: String(raw.defaultPlaybookAction ?? ""),
     deviatesFromPlaybook: Boolean(raw.deviatesFromPlaybook),
     confidence: Number(raw.confidence ?? 0),
-    mlScore: raw.mlScore == null ? null : Number(raw.mlScore),
+    mlScore: numberOrNull(raw.mlScore ?? raw.recoveryProbability),
     escalate: Boolean(raw.escalate),
     actionsAvailable: Array.isArray(raw.actionsAvailable) ? raw.actionsAvailable.map(String) : ["propose"],
     executes: false,
     model: String(raw.model ?? "fallback-rules"),
     fallbackUsed: Boolean(raw.fallbackUsed),
   };
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (value == null || value === "") {
+    return null;
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function stepState(detail: CaseDetail, step: number, runningStep: number | null) {
