@@ -61,6 +61,46 @@ public final class SimulatedWebhookFactory {
 					case INVOICE_EXPIRED -> WebhookScenarioPayloads.invoiceExpired(eventId, sourceId, 250000, stamp);
 					case CHECKOUT_ABANDONED ->
 							WebhookScenarioPayloads.checkoutAbandoned(eventId, sourceId, 34900, stamp);
+					case CARD_NOT_ENROLLED -> WebhookScenarioPayloads.paymentFailed(
+							eventId,
+							sourceId,
+							79900,
+							"card",
+							"unenrolled.card@example.com",
+							"card_not_enrolled",
+							"BAD_REQUEST_ERROR",
+							"Card is not enrolled for 3D Secure",
+							stamp);
+					case PAYMENT_TIMED_OUT -> WebhookScenarioPayloads.paymentFailed(
+							eventId,
+							sourceId,
+							59900,
+							"card",
+							"timeout.user@example.com",
+							"payment_timed_out",
+							"GATEWAY_ERROR",
+							"Payment timed out",
+							stamp);
+					case CARD_DECLINED -> WebhookScenarioPayloads.paymentFailed(
+							eventId,
+							sourceId,
+							89900,
+							"card",
+							"declined.card@example.com",
+							"card_declined",
+							"BAD_REQUEST_ERROR",
+							"Card was declined by the issuer",
+							stamp);
+					case CURRENCY_NOT_SUPPORTED -> WebhookScenarioPayloads.paymentFailed(
+							eventId,
+							sourceId,
+							69900,
+							"card",
+							"currency.user@example.com",
+							"currency_not_supported",
+							"BAD_REQUEST_ERROR",
+							"Currency is not supported on this method",
+							stamp);
 					case PAYMENT_CAPTURED -> WebhookScenarioPayloads.paymentCaptured(eventId, sourceId, 49900, stamp);
 				};
 		return new PreparedWebhook(sourceOf(scenario), sourceId, eventId, body);
@@ -68,7 +108,14 @@ public final class SimulatedWebhookFactory {
 
 	public static RecoverySource sourceOf(SimulateScenario scenario) {
 		return switch (scenario) {
-			case INSUFFICIENT_FUNDS, CARD_EXPIRED, RISK_FAILED, PAYMENT_CAPTURED -> RecoverySource.PAYMENT;
+			case INSUFFICIENT_FUNDS,
+					CARD_EXPIRED,
+					RISK_FAILED,
+					CARD_NOT_ENROLLED,
+					PAYMENT_TIMED_OUT,
+					CARD_DECLINED,
+					CURRENCY_NOT_SUPPORTED,
+					PAYMENT_CAPTURED -> RecoverySource.PAYMENT;
 			case SUBSCRIPTION_PENDING, SUBSCRIPTION_HALTED -> RecoverySource.SUBSCRIPTION;
 			case INVOICE_EXPIRED -> RecoverySource.INVOICE;
 			case CHECKOUT_ABANDONED -> RecoverySource.CHECKOUT_SESSION;

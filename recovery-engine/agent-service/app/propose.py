@@ -16,6 +16,10 @@ DIAGNOSIS = {
     "gateway_technical": "TEMPORARY_ISSUER_FAILURE",
     "gateway_technical_error": "TEMPORARY_ISSUER_FAILURE",
     "bank_technical": "TEMPORARY_ISSUER_FAILURE",
+    "card_not_enrolled": "AUTH_NOT_ENROLLED",
+    "payment_timed_out": "TEMPORARY_TIMEOUT",
+    "card_declined": "ISSUER_DECLINE",
+    "currency_not_supported": "WRONG_CURRENCY",
 }
 
 RETRY_REASONS = {
@@ -24,9 +28,18 @@ RETRY_REASONS = {
     "gateway_technical",
     "gateway_technical_error",
     "bank_technical",
+    "payment_timed_out",
+    "card_declined",
 }
 STOP_REASONS = {"payment_risk_check_failed", "payment_cancelled"}
-LINK_REASONS = {"card_expired", "invalid_vpa", "checkout.abandoned", "subscription.halted"}
+LINK_REASONS = {
+    "card_expired",
+    "card_not_enrolled",
+    "currency_not_supported",
+    "invalid_vpa",
+    "checkout.abandoned",
+    "subscription.halted",
+}
 
 
 def diagnosis_of(reason: str) -> str:

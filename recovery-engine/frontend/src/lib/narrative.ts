@@ -62,13 +62,41 @@ export function storyFor(reason: string, step: PlaybookStep, probability: number
     };
   }
 
-  if (key.includes("card_expired") || key.includes("invalid_vpa") || key.includes("checkout.abandoned")) {
+  if (
+    key.includes("card_expired")
+    || key.includes("card_not_enrolled")
+    || key.includes("currency_not_supported")
+    || key.includes("invalid_vpa")
+    || key.includes("checkout.abandoned")
+  ) {
     return {
       waitLabel: step.step === 1 ? "Send link (no card retry)" : "One nudge only",
       waitMs: step.step === 1 ? 1100 : 1300,
       clockLabel: step.step === 1 ? "T+0 · once" : `Nudge ${step.step - 1} · once`,
       what: step.note,
       why: "Dead instrument / abandon — remind once per step, never silent-retry forever.",
+    };
+  }
+
+  if (key.includes("payment_timed_out")) {
+    const clocks = ["T+2h · once", "T+24h · once", "T+48h · once", "After retries"];
+    return {
+      waitLabel: step.step === 4 ? "Stop retries — send payment link once" : "One silent retry at this window",
+      waitMs: 1400,
+      clockLabel: clocks[Math.min(step.step - 1, 3)],
+      what: step.note,
+      why: "Timeout is often a blip. First retry always runs. Extra silent retries can skip if P is low.",
+    };
+  }
+
+  if (key.includes("card_declined")) {
+    const clocks = ["T+24h · once", "T+48h · once", "T+72h · once", "After retries"];
+    return {
+      waitLabel: step.step === 4 ? "Stop retries — send payment link once" : "One silent retry at this window",
+      waitMs: 1500,
+      clockLabel: clocks[Math.min(step.step - 1, 3)],
+      what: step.note,
+      why: "Issuer said no. First delayed retry always runs. Extra silent hits can skip if P is low.",
     };
   }
 

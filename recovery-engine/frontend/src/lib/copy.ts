@@ -196,7 +196,14 @@ function skipWhy(input: {
   const p =
     input.mlScore != null && Number.isFinite(input.mlScore) ? `${Math.round(input.mlScore * 100)}%` : null;
 
-  if (input.failureReason.toLowerCase().includes("card_expired") || input.failureReason.toLowerCase().includes("expired")) {
+  const reason = input.failureReason.toLowerCase();
+  if (reason.includes("card_not_enrolled")) {
+    return "Why: this card is not enrolled for 3DS. A silent retry cannot succeed.";
+  }
+  if (reason.includes("currency_not_supported")) {
+    return "Why: this method cannot take that currency. A silent retry cannot succeed.";
+  }
+  if (reason.includes("card_expired") || reason.includes("expired")) {
     return "Why: this card is dead. A retry on it cannot succeed.";
   }
 
@@ -252,7 +259,7 @@ const REASON_BLURBS: Record<string, string> = {
   insufficient_funds: "The bank said there wasn’t enough money. We wait for payday and try once — not in a loop.",
   card_expired: "The saved card is dead. A retry on the same card will fail, so we send a new payment link.",
   payment_risk_check_failed:
-    "Fraud or risk checks blocked the charge. Money stays put until the other person signs off.",
+    "About 25% of the live mix. Fraud or risk checks blocked the charge. Money stays put until the other person signs off.",
   "subscription.pending": "The mandate didn’t go through. We space out a few mandate retries.",
   "subscription.halted": "Retries already ran out on this subscription. Someone has to pick the next step.",
   "invoice.expired": "A B2B invoice timed out before it was paid. We chase receivables, not silent card retries.",
@@ -262,6 +269,14 @@ const REASON_BLURBS: Record<string, string> = {
   invalid_vpa: "The UPI address is wrong. We ask for a new VPA instead of retrying the same one.",
   gateway_technical: "The bank or gateway hiccuped. One short wait, then one retry.",
   bank_technical: "The bank had a technical miss. Wait once, then try again.",
+  card_not_enrolled:
+    "Largest live share (~40%). This card is not enrolled for 3D Secure. A silent retry will fail. We send a link so they can finish auth or pick another method.",
+  payment_timed_out:
+    "About 15% of the live mix. The payment timed out. That is often a blip. Wait a little, try the same method once, then a link.",
+  card_declined:
+    "About 10% of the live mix. The bank declined the card. We try once after a wait. Extra silent hits can be skipped if P is low.",
+  currency_not_supported:
+    "About 5% of the live mix. This method cannot take that currency. Retrying it will fail. We send a link for another method.",
 };
 
 export function howThisRuns(reason: string) {
@@ -272,8 +287,17 @@ export function howThisRuns(reason: string) {
   if (key.includes("risk") || key.includes("cancelled")) {
     return "Start does not charge. This sits for the other person. You cannot skip that hold.";
   }
-  if (key.includes("card_expired") || key.includes("invalid_vpa") || key.includes("checkout")) {
-    return "Start does not retry the dead or abandoned method. It sends one payment link, then at most a couple of reminders.";
+  if (
+    key.includes("card_expired")
+    || key.includes("card_not_enrolled")
+    || key.includes("currency_not_supported")
+    || key.includes("invalid_vpa")
+    || key.includes("checkout")
+  ) {
+    return "Start does not silent-retry this method. It sends one payment link, then at most a couple of reminders.";
+  }
+  if (key.includes("payment_timed_out") || key.includes("card_declined")) {
+    return "Start always runs the first retry. Extra silent retries can be skipped when P(recovery) is below 12%.";
   }
   if (key.includes("invoice")) {
     return "Start chases a promise to pay. It does not silent-retry a card.";

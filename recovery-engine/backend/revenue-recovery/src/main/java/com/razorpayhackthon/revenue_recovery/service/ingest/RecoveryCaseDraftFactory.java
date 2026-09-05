@@ -28,7 +28,7 @@ class RecoveryCaseDraftFactory {
 		RecoveryPriority priority =
 				"payment_risk_check_failed".equals(failReason)
 						? RecoveryPriority.CRITICAL
-						: "insufficient_funds".equals(failReason)
+						: "insufficient_funds".equals(failReason) || "payment_timed_out".equals(failReason)
 								? RecoveryPriority.MEDIUM
 								: RecoveryPriority.HIGH;
 		return new RecoveryCaseDraft(

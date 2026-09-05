@@ -1,7 +1,8 @@
 package com.razorpayhackthon.revenue_recovery.webhook;
 
 /**
- * The 8 Track-03 demo scenarios. Hit {@code /api/webhooks/simulate/{slug}} or {@code /all}.
+ * Desk simulate catalog: original Track-03 cases plus the live Razorpay failure mix.
+ * Hit {@code /api/webhooks/simulate/{slug}} or {@code /all}.
  */
 public enum SimulateScenario {
 	INSUFFICIENT_FUNDS(
@@ -14,7 +15,7 @@ public enum SimulateScenario {
 			"risk-failed",
 			"payment.failed",
 			"payment_risk_check_failed",
-			"Do not retry — escalate"),
+			"Live mix ~25% — do not retry, escalate"),
 	SUBSCRIPTION_PENDING(
 			"subscription-pending",
 			"subscription.pending",
@@ -25,6 +26,26 @@ public enum SimulateScenario {
 	INVOICE_EXPIRED("invoice-expired", "invoice.expired", "invoice.expired", "B2B receivables chase"),
 	CHECKOUT_ABANDONED(
 			"checkout-abandoned", "checkout.abandoned", "checkout.abandoned", "Checkout drop-off pay-link"),
+	CARD_NOT_ENROLLED(
+			"card-not-enrolled",
+			"payment.failed",
+			"card_not_enrolled",
+			"Live mix ~40% — send payment link (complete 3DS)"),
+	PAYMENT_TIMED_OUT(
+			"payment-timed-out",
+			"payment.failed",
+			"payment_timed_out",
+			"Live mix ~15% — short wait, then retry"),
+	CARD_DECLINED(
+			"card-declined",
+			"payment.failed",
+			"card_declined",
+			"Live mix ~10% — one retry, then a payment link"),
+	CURRENCY_NOT_SUPPORTED(
+			"currency-not-supported",
+			"payment.failed",
+			"currency_not_supported",
+			"Live mix ~5% — send payment link (other method)"),
 	PAYMENT_CAPTURED("payment-captured", "payment.captured", "captured", "Close case — ₹ recovered");
 
 	private final String slug;

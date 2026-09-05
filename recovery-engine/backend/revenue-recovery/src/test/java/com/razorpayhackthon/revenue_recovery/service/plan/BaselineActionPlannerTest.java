@@ -8,13 +8,17 @@ import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionType;
 import com.razorpayhackthon.revenue_recovery.enums.RecoverySource;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.BaselineReasonHandler;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.DefaultReasonHandler;
+import com.razorpayhackthon.revenue_recovery.service.plan.handler.carddeclined.CardDeclinedHandler;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.cardexpired.CardExpiredHandler;
+import com.razorpayhackthon.revenue_recovery.service.plan.handler.cardnotenrolled.CardNotEnrolledHandler;
+import com.razorpayhackthon.revenue_recovery.service.plan.handler.currencynotsupported.CurrencyNotSupportedHandler;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.checkoutabandoned.CheckoutAbandonedHandler;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.gatewaytechnical.GatewayTechnicalHandler;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.insufficientfunds.InsufficientFundsHandler;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.invalidvpa.InvalidVpaHandler;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.invoiceexpired.InvoiceExpiredHandler;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.paymentcancelled.PaymentCancelledHandler;
+import com.razorpayhackthon.revenue_recovery.service.plan.handler.paymenttimedout.PaymentTimedOutHandler;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.riskfailed.RiskFailedHandler;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.subscriptionhalted.SubscriptionHaltedHandler;
 import com.razorpayhackthon.revenue_recovery.service.plan.handler.subscriptionpending.SubscriptionPendingHandler;
@@ -27,9 +31,13 @@ class BaselineActionPlannerTest {
 			new InsufficientFundsHandler(List.of(), null),
 			new RiskFailedHandler(List.of(), null),
 			new PaymentCancelledHandler(List.of(), null),
+			new CardDeclinedHandler(List.of(), null),
 			new CardExpiredHandler(List.of(), null),
+			new CardNotEnrolledHandler(List.of(), null),
+			new CurrencyNotSupportedHandler(List.of(), null),
 			new InvalidVpaHandler(List.of(), null),
 			new GatewayTechnicalHandler(List.of(), null),
+			new PaymentTimedOutHandler(List.of(), null),
 			new SubscriptionPendingHandler(List.of(), null),
 			new SubscriptionHaltedHandler(List.of(), null),
 			new InvoiceExpiredHandler(List.of(), null),
@@ -58,7 +66,10 @@ class BaselineActionPlannerTest {
 		assertHandler("subscription.halted", RecoverySource.SUBSCRIPTION, SubscriptionHaltedHandler.class);
 		assertHandler("invoice.expired", RecoverySource.INVOICE, InvoiceExpiredHandler.class);
 		assertHandler("checkout.abandoned", RecoverySource.CHECKOUT_SESSION, CheckoutAbandonedHandler.class);
-		assertHandler("card_declined", RecoverySource.PAYMENT, DefaultReasonHandler.class);
+		assertHandler("card_declined", RecoverySource.PAYMENT, CardDeclinedHandler.class);
+		assertHandler("card_not_enrolled", RecoverySource.PAYMENT, CardNotEnrolledHandler.class);
+		assertHandler("payment_timed_out", RecoverySource.PAYMENT, PaymentTimedOutHandler.class);
+		assertHandler("currency_not_supported", RecoverySource.PAYMENT, CurrencyNotSupportedHandler.class);
 	}
 
 	@Test
@@ -75,6 +86,14 @@ class BaselineActionPlannerTest {
 				.isEqualTo(RecoveryActionType.REQUEST_PROMISE_TO_PAY);
 		assertThat(decide("checkout.abandoned", RecoverySource.CHECKOUT_SESSION).actionType())
 				.isEqualTo(RecoveryActionType.SEND_PAYMENT_LINK);
+		assertThat(decide("card_not_enrolled", RecoverySource.PAYMENT).actionType())
+				.isEqualTo(RecoveryActionType.SEND_PAYMENT_LINK);
+		assertThat(decide("currency_not_supported", RecoverySource.PAYMENT).actionType())
+				.isEqualTo(RecoveryActionType.SEND_PAYMENT_LINK);
+		assertThat(decide("payment_timed_out", RecoverySource.PAYMENT).actionType())
+				.isEqualTo(RecoveryActionType.RETRY_PAYMENT);
+		assertThat(decide("card_declined", RecoverySource.PAYMENT).actionType())
+				.isEqualTo(RecoveryActionType.RETRY_PAYMENT);
 	}
 
 	private void assertHandler(String reason, RecoverySource source, Class<?> type) {

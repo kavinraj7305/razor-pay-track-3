@@ -87,6 +87,10 @@ public class WebhookSimulateService {
 			case SUBSCRIPTION_HALTED -> "sub_hlt_" + stamp;
 			case INVOICE_EXPIRED -> "inv_exp_" + stamp;
 			case CHECKOUT_ABANDONED -> "chk_abd_" + stamp;
+			case CARD_NOT_ENROLLED -> "pay_enr_" + stamp;
+			case PAYMENT_TIMED_OUT -> "pay_tmo_" + stamp;
+			case CARD_DECLINED -> "pay_dcl_" + stamp;
+			case CURRENCY_NOT_SUPPORTED -> "pay_ccy_" + stamp;
 			case PAYMENT_CAPTURED -> resolvePaymentToCapture(capturedPaymentId, stamp);
 		};
 	}

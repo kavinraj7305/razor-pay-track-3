@@ -38,8 +38,17 @@ const FOLDERS: Record<string, { rule: string; steps: CatalogStep[] }> = {
       { title: "Stop", when: "After the second text", what: "No more messages. No charge on the old card." },
     ],
   },
+  card_not_enrolled: {
+    rule: "Largest live share (~40%). Card is not enrolled for 3DS. Never silent-retry. Link, then at most two texts.",
+    steps: [
+      { title: "Send a payment link", when: "Now", what: "They must finish 3DS or pick another method. A retry on this card fails." },
+      { title: "Text once", when: "24 hours later", what: "Remind them to open the link and complete auth." },
+      { title: "Text a second time", when: "72 hours later", what: "One last reminder. Then we stop." },
+      { title: "Stop", when: "After the second text", what: "No silent charge. No more messages." },
+    ],
+  },
   payment_risk_check_failed: {
-    rule: "Fraud or risk flagged this. We do not auto-charge. A person decides.",
+    rule: "About 25% of the live mix. Fraud or risk flagged this. We do not auto-charge. A person decides.",
     steps: [
       { title: "Do not charge", when: "Now", what: "Block any silent retry. Money stays put." },
       { title: "Send to the other person", when: "Now", what: "It sits on the policy queue until they look." },
@@ -99,6 +108,33 @@ const FOLDERS: Record<string, { rule: string; steps: CatalogStep[] }> = {
       { title: "Text once", when: "After the link", what: "Ask for a valid VPA." },
       { title: "Text a second time", when: "After one more wait", what: "One last reminder." },
       { title: "Stop", when: "After the second text", what: "No more VPA nudges." },
+    ],
+  },
+  payment_timed_out: {
+    rule: "About 15% of the live mix. Timeout is often a blip. First retry always runs. Extra silent retries can skip if P is below 12%.",
+    steps: [
+      { title: "First retry", when: "2 hours later", what: "Same method, once. This step always runs." },
+      { title: "Second retry", when: "24 hours later", what: "One more try if still unpaid. Skipped when P is below 12%." },
+      { title: "Last retry", when: "48 hours later", what: "Final debit attempt. Also skipped when P is below 12%." },
+      { title: "Send a payment link", when: "After the last retry", what: "Stop retrying. One link for another try." },
+    ],
+  },
+  card_declined: {
+    rule: "About 10% of the live mix. Issuer said no. First delayed retry always runs. Extra silent hits can skip if P is below 12%.",
+    steps: [
+      { title: "First retry", when: "24 hours later", what: "Wait, then try the same card once. This step always runs." },
+      { title: "Second retry", when: "48 hours later", what: "One more try if still unpaid. Skipped when P is below 12%." },
+      { title: "Last retry", when: "72 hours later", what: "Final silent charge before a link. Also skipped when P is below 12%." },
+      { title: "Send a payment link", when: "After the last retry", what: "Stop hitting this card. One link so they can pay another way." },
+    ],
+  },
+  currency_not_supported: {
+    rule: "About 5% of the live mix. This method cannot take that currency. Never silent-retry the same method. Link, then at most two texts.",
+    steps: [
+      { title: "Send a payment link", when: "Now", what: "Ask them to pay with a method that accepts this currency." },
+      { title: "Text once", when: "24 hours later", what: "Remind them to open the link and switch method." },
+      { title: "Text a second time", when: "72 hours later", what: "One last reminder. Then we stop." },
+      { title: "Stop", when: "After the second text", what: "No retry on the same method. No more messages." },
     ],
   },
   gateway_technical: {

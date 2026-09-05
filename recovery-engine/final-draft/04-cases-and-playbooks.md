@@ -12,26 +12,30 @@ Each reason then has a four-step folder under `service/plan/handler/`. `/execute
 | Invoice expired | `REQUEST_PROMISE_TO_PAY` | Planned |
 | Checkout abandoned | `SEND_PAYMENT_LINK` | Planned |
 | Subscription halted | `SEND_PAYMENT_LINK` | Planned |
-| Card expired, or invalid VPA | `SEND_PAYMENT_LINK` | Planned |
-| Insufficient funds, gateway/bank technical, subscription pending | `RETRY_PAYMENT` | Planned |
+| Card expired, card not enrolled, currency not supported, or invalid VPA | `SEND_PAYMENT_LINK` | Planned |
+| Insufficient funds, timeout, card declined, gateway/bank technical, subscription pending | `RETRY_PAYMENT` | Planned |
 | Anything else | `RETRY_PAYMENT` | Planned |
 
 `payment.captured` is not a playbook. It closes the matching open case.
 
-## The eight desk cases
+## Desk cases
 
 | Slug | Event | Reason | First move |
 |---|---|---|---|
 | insufficient-funds | `payment.failed` | `insufficient_funds` | Retry, planned |
 | card-expired | `payment.failed` | `card_expired` | Payment link, planned |
-| risk-failed | `payment.failed` | `payment_risk_check_failed` | Email, cancelled — no auto-charge |
+| risk-failed | `payment.failed` | `payment_risk_check_failed` | Email, cancelled — no auto-charge. Live mix ~25% |
+| card-not-enrolled | `payment.failed` | `card_not_enrolled` | Payment link, planned. Live mix ~40% |
+| payment-timed-out | `payment.failed` | `payment_timed_out` | Retry, planned. Live mix ~15% |
+| card-declined | `payment.failed` | `card_declined` | Retry, planned. Live mix ~10% |
+| currency-not-supported | `payment.failed` | `currency_not_supported` | Payment link, planned. Live mix ~5% |
 | subscription-pending | `subscription.pending` | `subscription.pending` | Retry, planned |
 | subscription-halted | `subscription.halted` | `subscription.halted` | Payment link, planned |
 | invoice-expired | `invoice.expired` | `invoice.expired` | Promise-to-pay chase, planned |
 | checkout-abandoned | `checkout.abandoned` | `checkout.abandoned` | Payment link, planned |
 | payment-captured | `payment.captured` | — | Matching case → recovered |
 
-Also understood by the planner, without a desk button: `payment_cancelled`, `gateway_technical`, `bank_technical`, `invalid_vpa`.
+Also understood by the planner, without a dedicated mix share: `payment_cancelled`, `gateway_technical`, `bank_technical`, `invalid_vpa`.
 
 ---
 
@@ -89,6 +93,50 @@ The UPI address is wrong. Retrying the same VPA will fail.
 | 2 | SMS nudge | Ask for a valid VPA |
 | 3 | Second SMS | One more nudge |
 | 4 | Stop | No more VPA nudges |
+
+## Card not enrolled
+
+Largest share of the live mix (~40%). The card is not enrolled for 3D Secure. Another silent debit will fail.
+
+| Step | Action | What happens |
+|---|---|---|
+| 1 | Payment link | Finish 3DS or pick another method |
+| 2 | SMS nudge | Remind once to open the link |
+| 3 | Second SMS | One more nudge |
+| 4 | Stop | No silent retry. No more nudges |
+
+## Payment timed out
+
+About 15% of the live mix. A timeout is often a blip. First retry always runs. Extra silent retries can skip if P(recovery) is below 12%.
+
+| Step | Action | What happens |
+|---|---|---|
+| 1 | Silent delayed retry | Same method, once, after ~2 hours |
+| 2 | Second silent retry | Next window (~24 hours) |
+| 3 | Last auto-retry | Final debit attempt (~48 hours) |
+| 4 | Payment link | Stop retrying. One link |
+
+## Card declined
+
+About 10% of the live mix. The issuer said no. First delayed retry always runs. Extra silent hits can skip if P is low.
+
+| Step | Action | What happens |
+|---|---|---|
+| 1 | Silent delayed retry | Same card, once, after ~24 hours |
+| 2 | Second silent retry | Next window (~48 hours) |
+| 3 | Last auto-retry | Final debit attempt (~72 hours) |
+| 4 | Payment link | Stop hitting this card. One link |
+
+## Currency not supported
+
+About 5% of the live mix. This method cannot take that currency. Retrying it will fail.
+
+| Step | Action | What happens |
+|---|---|---|
+| 1 | Payment link | Ask for a method that accepts this currency |
+| 2 | SMS nudge | Remind once to switch method |
+| 3 | Second SMS | One more nudge |
+| 4 | Stop | No retry on the same method |
 
 ## Gateway / bank technical
 
@@ -151,8 +199,9 @@ They left checkout. Send a pay link once. Do not keep charging.
 
 Same rupees at risk is not the same problem.
 
-- Temporary shortfall → wait, then retry the same instrument.
-- Dead instrument or wrong VPA → new method, never silent-retry the dead one.
+- Temporary shortfall or timeout → wait, then retry the same instrument.
+- Issuer decline → one delayed retry, then change channel.
+- Dead instrument, unenrolled card, wrong currency, or wrong VPA → new method, never silent-retry the dead one.
 - Risk or cancel → no auto-charge.
 - Abandoned checkout or halted mandate → one link, then stop.
 - Expired invoice → receivables chase, not card retries.

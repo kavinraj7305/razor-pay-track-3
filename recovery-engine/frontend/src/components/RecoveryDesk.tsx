@@ -354,6 +354,7 @@ export function RecoveryDesk() {
               {scenarios.map((scenario) => (
                 <option key={scenario.slug} value={scenario.slug}>
                   {prettyWords(scenario.reason)}
+                  {scenario.intendedAction ? ` · ${scenario.intendedAction}` : ""}
                 </option>
               ))}
             </select>

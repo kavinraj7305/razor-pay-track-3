@@ -255,7 +255,7 @@ const REASON_BLURBS: Record<string, string> = {
     "The bank said there wasn’t enough money. We wait for payday and try once — not in a loop.",
   card_expired: "The saved card is dead. A retry on the same card will fail, so we send a new payment link.",
   payment_risk_check_failed:
-    "Fraud or risk checks blocked the charge. Money stays put until the human in the loop signs off.",
+    "About 25% of the live mix. Fraud or risk checks blocked the charge. Money stays put until the human in the loop signs off.",
   "subscription.pending": "The mandate didn’t go through. We space out a few mandate retries.",
   "subscription.halted": "Retries already ran out on this subscription. Someone has to pick the next step.",
   "invoice.expired": "A B2B invoice timed out before it was paid. We chase receivables, not silent card retries.",
@@ -265,6 +265,14 @@ const REASON_BLURBS: Record<string, string> = {
   invalid_vpa: "The UPI address is wrong. We ask for a new VPA instead of retrying the same one.",
   gateway_technical: "The bank or gateway hiccuped. One short wait, then one retry.",
   bank_technical: "The bank had a technical miss. Wait once, then try again.",
+  card_not_enrolled:
+    "Largest live share (~40%). This card is not enrolled for 3D Secure. A silent retry will fail. We send a link so they can finish auth or pick another method.",
+  payment_timed_out:
+    "About 15% of the live mix. The payment timed out. That is often a blip. Wait a little, try the same method once, then a link.",
+  card_declined:
+    "About 10% of the live mix. The bank declined the card. We try once after a wait. Extra silent hits can be skipped if P is low.",
+  currency_not_supported:
+    "About 5% of the live mix. This method cannot take that currency. Retrying it will fail. We send a link for another method.",
 };
 
 function reasonBlurb(reason: string) {

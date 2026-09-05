@@ -30,6 +30,22 @@ public final class PlaybookClock {
 				default -> new Window("After last retry", 72);
 			};
 		}
+		if (key.contains("payment_timed_out")) {
+			return switch (step) {
+				case 1 -> new Window("T+2h", 2);
+				case 2 -> new Window("T+24h", 24);
+				case 3 -> new Window("T+48h", 48);
+				default -> new Window("After last retry", 48);
+			};
+		}
+		if (key.contains("card_declined")) {
+			return switch (step) {
+				case 1 -> new Window("T+24h", 24);
+				case 2 -> new Window("T+48h", 48);
+				case 3 -> new Window("T+72h", 72);
+				default -> new Window("After last retry", 72);
+			};
+		}
 		if (key.contains("gateway") || key.contains("bank_technical")) {
 			return switch (step) {
 				case 1 -> new Window("T+2h", 2);
@@ -46,7 +62,11 @@ public final class PlaybookClock {
 				default -> new Window("Held", 24);
 			};
 		}
-		if (key.contains("card_expired") || key.contains("invalid_vpa") || key.contains("checkout")) {
+		if (key.contains("card_expired")
+				|| key.contains("card_not_enrolled")
+				|| key.contains("currency_not_supported")
+				|| key.contains("invalid_vpa")
+				|| key.contains("checkout")) {
 			return switch (step) {
 				case 1 -> new Window("T+0", 0);
 				case 2 -> new Window("T+24h", 24);
