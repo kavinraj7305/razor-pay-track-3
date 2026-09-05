@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { DeskChrome, RoleGate } from "@/components/DeskChrome";
 import { adminBenchmark, adminDashboard, inr, pct, prettyError } from "@/lib/api";
+import { catalogPlaybook } from "@/lib/playbooks";
 import type { BenchmarkReport, DashboardSnapshot } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -67,14 +68,15 @@ function AdminBody() {
         {(snap?.byReason ?? []).length === 0 ? (
           <p className="empty">No open cases on the live book yet.</p>
         ) : (
-          <div className="rows">
+          <div className="score-reasons stuck-list">
+            <div className="score-reason head stuck-line">
+              <span>Failure</span>
+              <span>Open</span>
+            </div>
             {snap?.byReason.map((row) => (
-              <div key={row.reason} className="stuck-row" tabIndex={0}>
-                <div className="stuck-main">
-                  <span className="reason">{prettyReason(row.reason)}</span>
-                  <span className="stuck-count">{row.count}</span>
-                </div>
-                <p className="stuck-tip">{reasonBlurb(row.reason)}</p>
+              <div key={row.reason} className="score-reason stuck-line">
+                <FailureHint reason={row.reason} />
+                <span className="muted">{row.count}</span>
               </div>
             ))}
           </div>
@@ -85,6 +87,7 @@ function AdminBody() {
 }
 
 function Scoreboard({ report }: { report: BenchmarkReport }) {
+  const [tab, setTab] = useState<"results" | "playbook">("results");
   return (
     <section className="scoreboard">
       <div className="ops-head">
@@ -134,6 +137,27 @@ function Scoreboard({ report }: { report: BenchmarkReport }) {
         {pct(report.oracleRate)}). Risk is not auto-charged. High-P risk sits for the other person — those
         holds are how recovered went up. Extra silent retries are what we cut, not the first payday try.
       </p>
+      <div className="dash-tabs" role="tablist" aria-label="Batch table or playbooks">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "results"}
+          className={tab === "results" ? "dash-tab on" : "dash-tab"}
+          onClick={() => setTab("results")}
+        >
+          Results
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "playbook"}
+          className={tab === "playbook" ? "dash-tab on" : "dash-tab"}
+          onClick={() => setTab("playbook")}
+        >
+          Playbook
+        </button>
+      </div>
+      {tab === "results" ? (
       <div className="score-reasons">
         <div className="score-reason head">
           <span>Failure</span>
@@ -143,13 +167,50 @@ function Scoreboard({ report }: { report: BenchmarkReport }) {
         </div>
         {report.byReason.map((row) => (
           <div key={row.reason} className="score-reason">
-            <span className="reason">{prettyReason(row.reason)}</span>
+            <FailureHint reason={row.reason} />
             <span className="muted">{row.events}</span>
             <span>{inr(row.baselineRecoveredInr)}</span>
             <span>{inr(row.aiRecoveredInr)}</span>
           </div>
         ))}
       </div>
+      ) : (
+      <div className="playbook-list">
+        <p className="score-note">
+          How to read this: each failure has a printed plan. <strong>Step</strong> is what we do.{" "}
+          <strong>When</strong> is the wait after the failure. <strong>What it means</strong> is the reason
+          in plain words. First payday try always runs. Extra silent tries can be skipped when P is low.
+        </p>
+        {report.byReason.map((row) => {
+          const book = catalogPlaybook(row.reason);
+          return (
+            <article key={row.reason} className="playbook-block">
+              <header>
+                <FailureHint reason={row.reason} />
+                <span className="muted">{row.events} cases on this batch</span>
+              </header>
+              <p className="playbook-rule">{book.rule}</p>
+              <div className="playbook-grid">
+                <div className="playbook-row head">
+                  <span>Step</span>
+                  <span>When</span>
+                  <span>What it means</span>
+                </div>
+                {book.steps.map((step, index) => (
+                  <div key={`${row.reason}-${index}`} className="playbook-row">
+                    <span>
+                      {index + 1}. {step.title}
+                    </span>
+                    <span className="muted">{step.when}</span>
+                    <span>{step.what}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      )}
       {report.unresolved.length > 0 ? (
         <div>
           <p className="pill">Not chased — later paid</p>
@@ -170,6 +231,23 @@ function Scoreboard({ report }: { report: BenchmarkReport }) {
 
 function prettyReason(reason: string) {
   return reason.replaceAll("_", " ").replaceAll(".", " ");
+}
+
+function FailureHint({ reason }: { reason: string }) {
+  const name = prettyReason(reason);
+  return (
+    <span className="fail-name">
+      <span className="reason">{name}</span>
+      <span className="fail-q">
+        <button type="button" className="fail-q-btn" aria-label={`What ${name} means`}>
+          ?
+        </button>
+        <span className="fail-q-tip" role="tooltip">
+          {reasonBlurb(reason)}
+        </span>
+      </span>
+    </span>
+  );
 }
 
 const REASON_BLURBS: Record<string, string> = {

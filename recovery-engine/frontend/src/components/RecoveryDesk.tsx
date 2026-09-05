@@ -293,6 +293,7 @@ export function RecoveryDesk() {
       {error ? <p className="err">{error}</p> : null}
 
       <aside className="desk-side">
+        <p className="desk-open-label">1 · Pick or simulate</p>
         <h2>Practice cases</h2>
         <p className="desk-lede">
           {cases.length === 0
@@ -365,6 +366,7 @@ export function RecoveryDesk() {
       </aside>
 
       <section className="desk-case">
+        <p className="desk-open-label">2 · This case</p>
         {!detail ? (
           <div className="desk-teach">
             <h2>How to read this page</h2>

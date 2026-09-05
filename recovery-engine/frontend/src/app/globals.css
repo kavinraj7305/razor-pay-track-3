@@ -315,9 +315,22 @@ button {
 }
 
 .desk-page {
-  grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+  grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr);
   align-items: start;
-  column-gap: 2.5rem;
+  column-gap: 1.15rem;
+}
+
+.desk-side,
+.desk-case {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem 1.15rem 1.25rem;
+  min-width: 0;
+}
+
+.desk-case {
+  min-height: 24rem;
 }
 
 .desk-page > .err {
@@ -326,8 +339,13 @@ button {
 
 .desk-side h2,
 .desk-case h2 {
-  margin: 0;
+  margin: 0.2rem 0 0;
   text-transform: capitalize;
+}
+
+.desk-side > .desk-open-label,
+.desk-case > .desk-open-label {
+  margin: 0 0 0.35rem;
 }
 
 .desk-lede,
@@ -1600,6 +1618,86 @@ button {
   margin: 0;
 }
 
+.dash-tabs {
+  display: flex;
+  gap: 0.35rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.35rem;
+}
+
+.dash-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.25rem 0.15rem;
+  margin-right: 1rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.dash-tab.on,
+.dash-tab:hover {
+  color: var(--navy);
+  border-bottom-color: var(--gold);
+}
+
+.playbook-list {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.playbook-block header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.playbook-block .reason {
+  text-transform: capitalize;
+  font-weight: 600;
+}
+
+.playbook-rule {
+  margin: 0.35rem 0 0.55rem;
+  color: var(--ink);
+  max-width: 44rem;
+  line-height: 1.45;
+}
+
+.playbook-grid {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.playbook-row {
+  display: grid;
+  grid-template-columns: minmax(11rem, 1.2fr) 8.5rem minmax(0, 2fr);
+  gap: 0.6rem;
+  align-items: start;
+  padding: 0.45rem 0.6rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.86rem;
+}
+
+.playbook-row.head {
+  border-top: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 720px) {
+  .playbook-row {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+}
+
 .score-reasons {
   display: grid;
   gap: 0.3rem;
@@ -1695,56 +1793,82 @@ select {
   background: transparent;
 }
 
-.stuck-row {
+.stuck-list {
+  padding: 0.35rem 1rem 1rem;
+}
+
+.stuck-line {
+  grid-template-columns: 1fr 4rem;
+}
+
+.fail-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.fail-q {
   position: relative;
-  padding: 0.85rem 1rem;
-  border-top: 1px solid var(--line);
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.fail-q-btn {
+  width: 1.05rem;
+  height: 1.05rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
   cursor: help;
 }
 
-.stuck-row:hover,
-.stuck-row:focus {
-  background: #eaf3f0;
+.fail-q-btn:hover,
+.fail-q-btn:focus-visible {
+  color: var(--navy);
+  border-color: var(--navy);
   outline: none;
 }
 
-.stuck-main {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: center;
-}
-
-.stuck-count {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
-
-.stuck-tip {
+.fail-q-tip {
   display: none;
   position: absolute;
-  left: 0.75rem;
-  right: 0.75rem;
-  top: calc(100% - 0.15rem);
-  z-index: 8;
+  left: calc(100% + 0.5rem);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16.5rem;
+  z-index: 20;
   margin: 0;
-  padding: 0.7rem 0.8rem;
+  padding: 0.55rem 0.65rem;
   background: var(--header);
   color: var(--foam);
   border-radius: 6px;
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   line-height: 1.4;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
   box-shadow: 0 8px 20px rgba(15, 51, 47, 0.2);
+  pointer-events: none;
 }
 
-.stuck-row:hover .stuck-tip,
-.stuck-row:focus .stuck-tip {
+.fail-q:hover .fail-q-tip,
+.fail-q:focus-within .fail-q-tip {
   display: block;
 }
 
-.stuck-row:last-child .stuck-tip {
-  top: auto;
-  bottom: calc(100% - 0.15rem);
+@media (max-width: 720px) {
+  .fail-q-tip {
+    left: auto;
+    right: 0;
+    top: calc(100% + 0.35rem);
+    transform: none;
+  }
 }
 
 .desk-actions {
