@@ -8,6 +8,7 @@ import com.razorpayhackthon.revenue_recovery.enums.RecoveryActionType;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryCaseStatus;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryActionRepository;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryCaseRepository;
+import com.razorpayhackthon.revenue_recovery.service.plan.PlaybookClock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -106,7 +107,7 @@ public class PlaybookRunner {
 		action.setActionType(step.actionType());
 		action.setStatus(RecoveryActionStatus.PLANNED);
 		action.setAttemptNumber(step.stepNumber());
-		action.setReason(step.planNote());
+		stampSchedule(recoveryCase, action, step.stepNumber(), step.planNote());
 		return recoveryActionRepository.save(action);
 	}
 
@@ -127,7 +128,17 @@ public class PlaybookRunner {
 				});
 		action.setStatus(RecoveryActionStatus.CANCELLED);
 		action.setExecutedAt(LocalDateTime.now());
-		action.setReason(why);
+		PlaybookClock.Window window = PlaybookClock.of(recoveryCase.getReason(), preview.step());
+		action.setWaitHours(window.hours());
+		action.setScheduleLabel(window.label());
+		action.setReason(window.label() + " · " + why);
 		recoveryActionRepository.save(action);
+	}
+
+	private void stampSchedule(RecoveryCase recoveryCase, RecoveryAction action, int step, String note) {
+		PlaybookClock.Window window = PlaybookClock.of(recoveryCase.getReason(), step);
+		action.setWaitHours(window.hours());
+		action.setScheduleLabel(window.label());
+		action.setReason(window.label() + " · " + note);
 	}
 }

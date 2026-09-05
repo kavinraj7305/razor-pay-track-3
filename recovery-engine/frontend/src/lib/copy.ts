@@ -5,17 +5,19 @@ export function prettyWords(value: string) {
 export function statusLabel(status: string) {
   switch (status) {
     case "OPEN":
-      return "Open";
+    case "ACTION_PLANNED":
+    case "PLANNED":
+      return "Ready";
     case "RECOVERED":
       return "Recovered";
     case "FAILED":
-      return "Failed";
+      return "Unpaid";
     case "EXPIRED":
       return "Expired";
     case "CANCELLED":
-      return "Cancelled";
+      return "Stopped";
     default:
-      return prettyWords(status) || "Open";
+      return prettyWords(status) || "Ready";
   }
 }
 
@@ -51,70 +53,146 @@ export function stepResult(status: string) {
 }
 
 export function chanceLabel(value: number | null | undefined, scoreStatus?: string | null) {
-  if (scoreStatus === "LOW_DATA") {
-    return "Not enough history — usual plan";
-  }
-  if (scoreStatus === "UNAVAILABLE" || value == null) {
-    return "Usual plan";
+  if (scoreStatus === "LOW_DATA" || scoreStatus === "UNAVAILABLE" || value == null) {
+    return null;
   }
   const pct = Math.round(value * 100);
   if (pct >= 60) {
-    return `${pct}% — likely to pay`;
+    return `${pct}% likely to pay`;
   }
   if (pct >= 30) {
-    return `${pct}% — uncertain`;
+    return `${pct}% chance they pay`;
   }
-  return `${pct}% — unlikely to pay`;
+  return `${pct}% unlikely to pay`;
 }
 
-export function policyBanner(reason: string, verdict: string) {
-  if (reason === "HUMAN_OVERRIDE") {
-    return "Signed off. You can continue recovery.";
-  }
-  if (verdict === "BLOCK") {
-    return "Held for the other person. You cannot start until they let it through.";
-  }
-  if (verdict === "SKIP_RETRY") {
-    return "Extra retries were skipped. The rest of the plan can still run.";
-  }
-  return "Cleared to continue.";
+export function stepNote(note: string) {
+  return note.replace(/^Step\s+\d+:\s*/i, "").replace(/^T\+\S+\s*·\s*/i, "");
 }
 
-export function auditTitle(eventType: string) {
-  if (eventType === "AGENT_PROPOSE") {
-    return "Suggested a next step";
+export function scheduleWhen(when: string | null | undefined, waitHours: number | null | undefined) {
+  if (!when) {
+    return null;
   }
-  if (eventType === "POLICY_BLOCK") {
-    return "Held for review";
+  if (when === "T+0") {
+    return "Runs at once (T+0)";
   }
-  if (eventType === "POLICY_SKIP_RETRY") {
-    return "Skipped an extra retry";
+  if (waitHours != null && waitHours > 0) {
+    return `Scheduled ${when} after the failure (${waitHours} hours)`;
   }
-  if (eventType === "POLICY_ALLOW" || eventType === "POLICY_APPROVED") {
-    return "Cleared to continue";
+  return `Scheduled ${when} after the failure`;
+}
+
+export function stepTitle(step: number, actionType: string) {
+  if (actionType.includes("RETRY")) {
+    if (step === 1) {
+      return "First retry on the same card";
+    }
+    if (step === 2) {
+      return "Second retry after a longer wait";
+    }
+    return "Last retry, then a text";
   }
-  if (eventType === "POLICY_REJECTED") {
-    return "Kept on hold";
+  return actionLabel(actionType);
+}
+
+export function explainStep(input: {
+  failureReason: string;
+  actionType: string;
+  step: number;
+  status: string | null;
+  actionNote: string | null;
+  playbookNote: string;
+  policyVerdict: string | null;
+}): { what: string; why: string | null; result: string } {
+  const skipped = input.status === "CANCELLED";
+  const failed = input.status === "FAILED";
+  const done = input.status === "EXECUTED";
+  const what = stepNote(input.playbookNote) || actionLabel(input.actionType);
+  const result = input.status ? stepResult(input.status) : "";
+  return {
+    what,
+    why: skipped
+      ? skipWhy(input)
+      : failed
+        ? failWhy(input)
+        : done
+          ? doneWhy(input)
+          : waitWhy(input),
+    result,
+  };
+}
+
+function skipWhy(input: {
+  failureReason: string;
+  actionType: string;
+  step: number;
+  actionNote: string | null;
+  policyVerdict: string | null;
+}) {
+  const note = (input.actionNote ?? "").toLowerCase();
+  const reason = input.failureReason.toLowerCase();
+  const ml = note.includes("ml skip");
+  if (reason.includes("insufficient")) {
+    if (input.step === 1) {
+      return ml
+        ? "Why: history says another silent charge on this card is unlikely to recover, so we did not wait for payday."
+        : "Why: the bank already said there wasn’t enough money. Waiting and charging the same card is the loop we avoid.";
+    }
+    if (input.step === 2) {
+      return "Why: a longer wait does not fix the same shortfall on the same card, so this retry was not run.";
+    }
+    return "Why: we do not do a last silent charge and then text after more failures. The payment link is the next channel.";
   }
-  if (eventType.includes("ACTION") && eventType.includes("FAIL")) {
-    return "This attempt failed";
+  if (ml) {
+    return "Why: this customer is unlikely to pay on another silent charge, so we changed channel.";
   }
-  if (eventType.includes("ACTION") && (eventType.includes("EXECUTE") || eventType.includes("DONE"))) {
-    return "Ran a recovery step";
+  if (reason.includes("card_expired") || reason.includes("expired")) {
+    return "Why: this card is dead. A retry on it cannot succeed.";
   }
-  if (eventType.includes("PLANNED") || eventType.includes("PLAN")) {
-    return "Planned the next step";
+  if (note.includes("policy skip") || input.policyVerdict === "SKIP_RETRY") {
+    return "Why: another silent retry would not help, so we moved on.";
   }
-  if (eventType.includes("SCORE")) {
-    return "Scored this customer";
+  return "Why: this step was not run so it does not repeat.";
+}
+
+function waitWhy(input: { actionType: string; step: number }) {
+  if (input.actionType.includes("RETRY") && input.step === 1) {
+    return "If we start, this waits once, then tries the same card.";
   }
-  if (eventType.includes("CASE") && eventType.includes("OPEN")) {
-    return "Opened this case";
+  if (input.actionType.includes("RETRY")) {
+    return "Only runs if an earlier retry still left the case unpaid.";
   }
-  if (eventType.includes("RECOVER")) {
-    return "Marked recovered";
+  if (input.actionType === "SEND_PAYMENT_LINK") {
+    return "This is the change of channel — one link, not another silent charge.";
   }
-  return prettyWords(eventType);
+  return null;
+}
+
+function failWhy(input: { failureReason: string; actionNote: string | null }) {
+  if (input.actionNote && !input.actionNote.toLowerCase().includes("policy") && !input.actionNote.toLowerCase().includes("ml ")) {
+    return stepNote(input.actionNote);
+  }
+  if (input.failureReason.toLowerCase().includes("insufficient")) {
+    return "This attempt failed. There still was not enough money on the same instrument.";
+  }
+  return "This attempt ran once and did not come back.";
+}
+
+function doneWhy(input: { actionType: string; actionNote: string | null; playbookNote: string }) {
+  if (input.actionType === "SEND_PAYMENT_LINK") {
+    return "Done — one link, so they can pay with another method when the money is back.";
+  }
+  if (input.actionType === "SEND_SMS") {
+    return "Done — we texted once. We do not keep messaging.";
+  }
+  if (input.actionType === "SEND_EMAIL") {
+    return "Done — we emailed once instead of charging again.";
+  }
+  if (input.actionNote) {
+    return stepNote(input.actionNote);
+  }
+  return stepNote(input.playbookNote);
 }
 
 const REASON_BLURBS: Record<string, string> = {

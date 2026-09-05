@@ -88,13 +88,17 @@ public class PolicyEngine {
 			cancelPlannedRetries(recoveryCase, decision);
 		}
 		if (decision.verdict() != PolicyDecision.Verdict.ALLOW) {
+			Map<String, Object> details = detailsOf(decision);
+			if (decision.skipRetry()) {
+				details.putAll(PlaybookClock.auditFields(recoveryCase.getReason(), 1, recoveryCase.getCreatedAt()));
+			}
 			auditWriter.write(
 					recoveryCase,
 					decision.blocked() ? "POLICY_BLOCK" : "POLICY_SKIP_RETRY",
 					decision.blocked() ? "BLOCK" : "SKIP_RETRY",
 					"SYSTEM",
 					"policy-engine",
-					detailsOf(decision));
+					details);
 		}
 		return decision;
 	}
@@ -145,7 +149,12 @@ public class PolicyEngine {
 				.forEach(action -> {
 					action.setStatus(RecoveryActionStatus.CANCELLED);
 					action.setExecutedAt(LocalDateTime.now());
-					action.setReason("Policy " + decision.reason() + ": " + decision.recommendedAction());
+					int step = action.getAttemptNumber() == null ? 1 : action.getAttemptNumber();
+					PlaybookClock.Window window = PlaybookClock.of(recoveryCase.getReason(), step);
+					action.setWaitHours(window.hours());
+					action.setScheduleLabel(window.label());
+					action.setReason(
+							window.label() + " · Policy " + decision.reason() + ": " + decision.recommendedAction());
 					recoveryActionRepository.save(action);
 				});
 	}

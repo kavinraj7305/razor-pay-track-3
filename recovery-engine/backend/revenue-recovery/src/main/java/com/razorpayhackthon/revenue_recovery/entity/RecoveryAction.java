@@ -58,6 +58,12 @@ public class RecoveryAction {
 	@Column(length = 500)
 	private String reason;
 
+	@Column(name = "wait_hours")
+	private Integer waitHours;
+
+	@Column(name = "schedule_label", length = 40)
+	private String scheduleLabel;
+
 	@Column(name = "executed_at")
 	private LocalDateTime executedAt;
 

@@ -191,7 +191,9 @@ public class RecoveryActionPlanService {
 		if (recoveryCase.getStatus() == RecoveryCaseStatus.RECOVERED || reason.contains("captured")) {
 			return List.of(new PlaybookStepPreview(1, "NO_ACTION", "Already recovered — close, do not chase"));
 		}
-		return baselineActionPlanner.pick(recoveryCase).playbook();
+		return baselineActionPlanner.pick(recoveryCase).playbook().stream()
+				.map(step -> PlaybookClock.stamp(recoveryCase.getReason(), step))
+				.toList();
 	}
 
 	private PlannedAction toAction(RecoveryAction action) {
@@ -201,7 +203,10 @@ public class RecoveryActionPlanService {
 				action.getStatus().name(),
 				action.getAttemptNumber(),
 				action.getReason(),
-				action.getCreatedAt());
+				action.getCreatedAt(),
+				action.getScheduleLabel(),
+				action.getWaitHours(),
+				action.getExecutedAt());
 	}
 
 	private AuditLine toAudit(AuditEvent event) {

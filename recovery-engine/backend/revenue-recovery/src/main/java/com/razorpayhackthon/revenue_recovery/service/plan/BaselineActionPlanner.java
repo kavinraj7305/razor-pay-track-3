@@ -50,29 +50,34 @@ public class BaselineActionPlanner {
 		BaselineReasonHandler handler = pick(recoveryCase);
 		PlannedDecision planned = handler.decide(recoveryCase);
 
+		PlaybookClock.Window window = PlaybookClock.of(recoveryCase.getReason(), 1);
 		RecoveryAction action = new RecoveryAction();
 		action.setActionId("act_" + UUID.randomUUID().toString().replace("-", ""));
 		action.setRecoveryCase(recoveryCase);
 		action.setActionType(planned.actionType());
 		action.setStatus(planned.status());
 		action.setAttemptNumber(1);
-		action.setReason(planned.note());
+		action.setReason(window.label() + " · " + planned.note());
+		action.setWaitHours(window.hours());
+		action.setScheduleLabel(window.label());
 		recoveryActionRepository.save(action);
 
 		recoveryCase.setStatus(planned.caseStatus());
 		recoveryCaseRepository.save(recoveryCase);
 
+		Map<String, Object> plannedAudit = new LinkedHashMap<>();
+		plannedAudit.put("actionType", planned.actionType().name());
+		plannedAudit.put("actionStatus", planned.status().name());
+		plannedAudit.put("failureReason", String.valueOf(recoveryCase.getReason()));
+		plannedAudit.put("source", recoveryCase.getSource().name());
+		plannedAudit.put("handler", handler.getClass().getSimpleName());
+		plannedAudit.put("note", planned.note());
+		plannedAudit.putAll(PlaybookClock.auditFields(recoveryCase.getReason(), 1, recoveryCase.getCreatedAt()));
 		audit(
 				recoveryCase,
 				planned.blocked() ? "BASELINE_ACTION_BLOCKED" : "BASELINE_ACTION_PLANNED",
 				planned.blocked() ? "BLOCK" : "PLAN",
-				Map.of(
-						"actionType", planned.actionType().name(),
-						"actionStatus", planned.status().name(),
-						"failureReason", String.valueOf(recoveryCase.getReason()),
-						"source", recoveryCase.getSource().name(),
-						"handler", handler.getClass().getSimpleName(),
-						"note", planned.note()));
+				plannedAudit);
 
 		log.info(
 				"Baseline {} caseId={} handler={} action={} status={}",

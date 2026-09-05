@@ -31,7 +31,10 @@ public record RecoveryCasePlanResponse(
 			String status,
 			Integer attemptNumber,
 			String note,
-			LocalDateTime createdAt) {}
+			LocalDateTime createdAt,
+			String when,
+			Integer waitHours,
+			LocalDateTime executedAt) {}
 
 	public record AuditLine(
 			String eventId, String eventType, String action, Map<String, Object> details, LocalDateTime createdAt) {}

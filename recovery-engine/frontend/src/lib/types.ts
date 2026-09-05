@@ -2,6 +2,8 @@ export type PlaybookStep = {
   step: number;
   actionType: string;
   note: string;
+  when?: string | null;
+  waitHours?: number | null;
 };
 
 export type ScorePeek = {
@@ -42,6 +44,9 @@ export type PlannedAction = {
   attemptNumber: number | null;
   note: string | null;
   createdAt: string | null;
+  when?: string | null;
+  waitHours?: number | null;
+  executedAt?: string | null;
 };
 
 export type AuditLine = {

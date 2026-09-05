@@ -104,15 +104,13 @@ export default function LoginPage() {
           ))}
         </div>
         <form
-          className="panel login-form"
+          className="login-form"
           onSubmit={(event) => {
             event.preventDefault();
             void submit();
           }}
         >
-          <div className="panel-head">
-            <h2>Sign in with email</h2>
-          </div>
+          <h2>Or sign in with email</h2>
           <div className="form-grid">
             <label>
               Email

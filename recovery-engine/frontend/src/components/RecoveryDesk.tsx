@@ -13,13 +13,13 @@ import {
 } from "@/lib/api";
 import {
   actionLabel,
-  auditTitle,
   chanceLabel,
-  policyBanner,
+  explainStep,
   prettyWords,
   reasonBlurb,
+  scheduleWhen,
   statusLabel,
-  stepResult,
+  stepTitle,
 } from "@/lib/copy";
 import { latestActionForStep, outcomeFor, storyFor } from "@/lib/narrative";
 import { completedSteps, remainingSteps, sleep } from "@/lib/progress";
@@ -33,7 +33,7 @@ export function RecoveryDesk() {
   const [detail, setDetail] = useState<CaseDetail | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ticker, setTicker] = useState("Pick a case, then start recovery.");
+  const [ticker, setTicker] = useState("");
   const [runningStep, setRunningStep] = useState<number | null>(null);
   const [waitPct, setWaitPct] = useState(0);
   const [waitClock, setWaitClock] = useState<string | null>(null);
@@ -111,7 +111,7 @@ export function RecoveryDesk() {
     setOutcomeNow(null);
     setWaitClock(null);
     setWaitPct(0);
-    setTicker("Pick a case, then start recovery.");
+    setTicker("");
   }
 
   async function startLiveProcess() {
@@ -129,15 +129,15 @@ export function RecoveryDesk() {
       let current = detail;
       const hasProposal = current.audit?.some((line) => line.eventType === "AGENT_PROPOSE");
       if (!hasProposal) {
-        setTicker("Reading the case before anything is charged.");
+        setTicker("Reading the case.");
         const next = await proposeCase(current.caseId);
         setProposal(next);
         current = await recordAgentProposal(current.caseId, next);
         setDetail(current);
       }
 
-      setTicker("This failure is now a recovery case.");
-      await sleep(700);
+      setTicker("Opening recovery.");
+      await sleep(600);
       if (runToken.current !== token) {
         return;
       }
@@ -146,9 +146,9 @@ export function RecoveryDesk() {
       setTicker(
         probability == null
           ? "Following the usual plan for this failure."
-          : `Chance they pay: ${Math.round(probability * 100)}%.`,
+          : `This customer is ${Math.round(probability * 100)}% likely to pay.`,
       );
-      await sleep(900);
+      await sleep(800);
       if (runToken.current !== token) {
         return;
       }
@@ -161,7 +161,7 @@ export function RecoveryDesk() {
         setOutcomeNow({
           label: "Recovered",
           tone: "ok",
-          detail: "This payment already came back. Nothing more to run.",
+          detail: "This payment already came back.",
         });
         return;
       }
@@ -185,15 +185,13 @@ export function RecoveryDesk() {
         const story = storyFor(current.reason, next, probabilityNow);
         setRunningStep(next.step);
         setWaitClock(story.clockLabel);
-        setTicker(story.what);
+        setTicker(actionLabel(next.actionType));
         setOutcomeNow(null);
 
         const ok = await animateWait(story.waitMs, token);
         if (!ok) {
           return;
         }
-
-        setTicker(`Running: ${actionLabel(next.actionType)}`);
 
         const doneBefore = completedSteps(current).size;
         try {
@@ -202,11 +200,11 @@ export function RecoveryDesk() {
             setDetail(current);
             setRunningStep(null);
             setWaitClock(null);
-            setTicker("Held for the other person.");
+            setTicker("Waiting for the other person.");
             setOutcomeNow({
               label: "Waiting for review",
               tone: "stop",
-              detail: "This case waits for the other person. After they let it through, you can start again.",
+              detail: "Nothing is charged until they let this through.",
             });
             return;
           }
@@ -227,7 +225,7 @@ export function RecoveryDesk() {
           : {
               label: "Stopped here",
               tone: "stop" as const,
-              detail: "This step was skipped so the same window does not run again.",
+              detail: "This step was skipped so we do not repeat it.",
             };
         setOutcomeNow(outcome);
         setRunningStep(null);
@@ -237,7 +235,7 @@ export function RecoveryDesk() {
           break;
         }
 
-        await sleep(700);
+        await sleep(600);
       }
 
       if (runToken.current !== token) {
@@ -246,13 +244,11 @@ export function RecoveryDesk() {
       setWaitClock(null);
       setWaitPct(100);
       const recovered = current.status === "RECOVERED";
-      setTicker(recovered ? "Recovered." : "The plan for this run is finished.");
+      setTicker(recovered ? "Recovered." : "");
       setOutcomeNow({
-        label: recovered ? "Recovered" : "Plan finished",
+        label: recovered ? "Recovered" : "Finished",
         tone: recovered ? "ok" : "stop",
-        detail: recovered
-          ? "The money came back. This case is closed."
-          : "Every planned step ran. The case may still be unpaid.",
+        detail: recovered ? "The money came back." : "",
       });
       await refresh(current.caseId);
     } finally {
@@ -265,227 +261,227 @@ export function RecoveryDesk() {
 
   const total = detail?.playbook?.length ?? 0;
   const doneCount = detail ? completedSteps(detail).size : 0;
-  const meterPct = total === 0 ? 0 : Math.min(100, Math.round((doneCount / total) * 100));
+  const finished = total > 0 && doneCount >= total;
   const held = detail?.policy?.verdict === "BLOCK" && detail.policy.reason !== "HUMAN_OVERRIDE";
+  const running = busy === "live";
   const canStart =
     detail != null &&
     busy === null &&
     detail.status !== "RECOVERED" &&
     !held &&
+    !finished &&
     (detail.playbook?.length ?? 0) > 0;
-  const nextStep = detail ? remainingSteps(detail)[0] : null;
-  const recommended = proposal ? actionLabel(proposal.recommendedAction) : nextStep ? actionLabel(nextStep.actionType) : "—";
   const atRisk = cases.reduce((sum, row) => sum + Number(row.amountAtRisk ?? 0), 0);
-  const activity = detail
-    ? [...detail.audit].reverse().slice(0, 6).map((line) => ({
-        id: line.eventId,
-        title: auditTitle(line.eventType),
-        body: humanAuditBody(line),
-      }))
-    : [];
+  const chance = detail
+    ? chanceLabel(detail.score?.recoveryProbability ?? detail.recoveryProbability, detail.score?.status ?? detail.scoreStatus)
+    : null;
+  const next = detail ? nextUseful(detail, proposal) : null;
+  const story = detail ? caseStory(detail, { held, finished, running, ticker, next }) : "";
 
   return (
-    <div className="wrap">
-      {error ? <div className="err">{error}</div> : null}
+    <div className="wrap desk-page">
+      {error ? <p className="err">{error}</p> : null}
 
-      <div className="desk-shell">
-        <aside className="desk-list">
-          <div className="desk-list-head">
-            <div>
-              <p className="pill">Open cases</p>
-              <strong>
-                {cases.length} {cases.length === 1 ? "case" : "cases"}
-              </strong>
-            </div>
-            <span className="muted">{inr(atRisk)} at risk</span>
-          </div>
-
-          {cases.length === 0 ? (
-            <p className="empty">Nothing open. A failed payment will land here.</p>
-          ) : (
-            <>
-              <div className="desk-cols">
-                <span>Failure</span>
-                <span>Status</span>
-                <span>Amount</span>
-              </div>
-              <div className="rows">
-                {cases.map((row) => (
-                  <button
-                    key={row.caseId}
-                    type="button"
-                    className={row.caseId === selectedId ? "desk-row active" : "desk-row"}
-                    onClick={() =>
-                      run("open", async () => {
-                        resetRun();
-                        const opened = await getCase(row.caseId);
-                        setProposal(proposalFromAudit(opened));
-                        setSelectedId(row.caseId);
-                        setDetail(opened);
-                      })
-                    }
-                  >
-                    <span className="reason">{prettyWords(row.reason)}</span>
-                    <span className="muted">{statusLabel(row.status)}</span>
-                    <span className="desk-amt">{inr(row.amountAtRisk)}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          {scenarios.length > 0 ? (
-            <form
-              className="desk-new"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!newSlug) {
-                  return;
-                }
-                void run("new", async () => {
-                  resetRun();
-                  setProposal(null);
-                  const created = await createIssue(newSlug);
-                  await refresh(created.caseId);
-                });
-              }}
-            >
-              <label>
-                <span className="pill">Open a failed payment</span>
-                <select
-                  value={newSlug}
-                  disabled={busy !== null}
-                  onChange={(event) => setNewSlug(event.target.value)}
+      <aside className="desk-side">
+        <h2>Cases</h2>
+        <p className="desk-lede">
+          {cases.length === 0 ? "Nothing open yet." : `${cases.length} open · ${inr(atRisk)} at risk`}
+        </p>
+        {cases.length > 0 ? (
+          <ul className="desk-cases">
+            {cases.map((row) => (
+              <li key={row.caseId}>
+                <button
+                  type="button"
+                  className={row.caseId === selectedId ? "desk-pick on" : "desk-pick"}
+                  onClick={() =>
+                    run("open", async () => {
+                      resetRun();
+                      const opened = await getCase(row.caseId);
+                      setProposal(proposalFromAudit(opened));
+                      setSelectedId(row.caseId);
+                      setDetail(opened);
+                    })
+                  }
                 >
-                  {scenarios.map((scenario) => (
-                    <option key={scenario.slug} value={scenario.slug}>
-                      {prettyWords(scenario.reason)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button className="ghost-btn" type="submit" disabled={busy !== null || !newSlug}>
-                {busy === "new" ? "Opening…" : "Open"}
+                  <span>{prettyWords(row.reason)}</span>
+                  <span>{inr(row.amountAtRisk)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {scenarios.length > 0 ? (
+          <form
+            className="desk-open"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!newSlug) {
+                return;
+              }
+              void run("new", async () => {
+                resetRun();
+                setProposal(null);
+                const created = await createIssue(newSlug);
+                await refresh(created.caseId);
+              });
+            }}
+          >
+            <select
+              value={newSlug}
+              disabled={busy !== null}
+              aria-label="Failure type"
+              onChange={(event) => setNewSlug(event.target.value)}
+            >
+              {scenarios.map((scenario) => (
+                <option key={scenario.slug} value={scenario.slug}>
+                  {prettyWords(scenario.reason)}
+                </option>
+              ))}
+            </select>
+            <button className="ghost-btn" type="submit" disabled={busy !== null || !newSlug}>
+              {busy === "new" ? "Opening…" : "Open case"}
+            </button>
+          </form>
+        ) : null}
+      </aside>
+
+      <section className="desk-case">
+        {!detail ? (
+          <p className="desk-lede">Pick a case, or open a failed payment.</p>
+        ) : (
+          <>
+            <header className="desk-hero">
+              <div>
+                <h2>{prettyWords(detail.reason)}</h2>
+                <p>{reasonBlurb(detail.reason)}</p>
+                <p className="desk-meta">
+                  <strong>{inr(detail.amountAtRisk)}</strong>
+                  <span>{held ? "Waiting for review" : finished ? "Finished" : statusLabel(detail.status)}</span>
+                  {chance ? <span>{chance}</span> : null}
+                </p>
+              </div>
+              <button
+                className={running ? "start-btn running" : "start-btn"}
+                type="button"
+                disabled={!canStart}
+                onClick={() => void startLiveProcess()}
+              >
+                {running
+                  ? "Running…"
+                  : detail.status === "RECOVERED"
+                    ? "Recovered"
+                    : held
+                      ? "Waiting"
+                      : finished
+                        ? "Finished"
+                        : "Start recovery"}
               </button>
-            </form>
-          ) : null}
-        </aside>
+            </header>
 
-        <article className="desk-pack">
-          {!detail ? (
-            <p className="empty">Select a case to see what to do.</p>
-          ) : (
-            <>
-              <header className="desk-pack-head">
-                <div>
-                  <p className="pill">This case</p>
-                  <h2>{prettyWords(detail.reason)}</h2>
-                  <p className="muted">{reasonBlurb(detail.reason)}</p>
-                </div>
-                <div className="desk-pack-actions">
-                  <strong className="approval-amount">{inr(detail.amountAtRisk)}</strong>
-                  <button
-                    className={busy === "live" ? "start-btn running" : "start-btn"}
-                    type="button"
-                    disabled={!canStart}
-                    onClick={() => void startLiveProcess()}
-                  >
-                    {busy === "live"
-                      ? "Running…"
-                      : detail.status === "RECOVERED"
-                        ? "Recovered"
-                        : held
-                          ? "Waiting for review"
-                          : "Start recovery"}
-                  </button>
-                </div>
-              </header>
+            <p className="desk-story">{story}</p>
 
-              <dl className="desk-facts">
-                <div>
-                  <dt>Status</dt>
-                  <dd>{held ? "Waiting for review" : statusLabel(detail.status)}</dd>
-                </div>
-                <div>
-                  <dt>Chance they pay</dt>
-                  <dd>{chanceLabel(detail.score?.recoveryProbability ?? detail.recoveryProbability, detail.score?.status ?? detail.scoreStatus)}</dd>
-                </div>
-                <div>
-                  <dt>Next step</dt>
-                  <dd>{detail.status === "RECOVERED" ? "None" : recommended}</dd>
-                </div>
-                <div>
-                  <dt>Progress</dt>
-                  <dd>{total === 0 ? "No plan yet" : `${doneCount} of ${total} steps`}</dd>
-                </div>
-              </dl>
+            {running ? (
+              <div className="desk-live" aria-live="polite">
+                <span>{ticker || "Working…"}</span>
+                <span className="meter">
+                  <span style={{ width: `${waitClock ? waitPct : Math.round((doneCount / Math.max(total, 1)) * 100)}%` }} />
+                </span>
+              </div>
+            ) : null}
 
-              {detail.policy ? (
-                <p className={`desk-note ${held ? "hold" : ""}`}>{policyBanner(detail.policy.reason, detail.policy.verdict)}</p>
-              ) : null}
+            {(detail.playbook ?? []).length > 0 ? (
+              <ol className="desk-steps">
+                {(detail.playbook ?? []).map((step) => {
+                  const state = stepState(detail, step.step, runningStep);
+                  const done = latestActionForStep(detail, step.step);
+                  const when = scheduleWhen(done?.when ?? step.when, done?.waitHours ?? step.waitHours);
+                  const explained = explainStep({
+                    failureReason: detail.reason,
+                    actionType: step.actionType,
+                    step: step.step,
+                    status: state === "running" ? null : done?.status ?? null,
+                    actionNote: done?.note ?? null,
+                    playbookNote: step.note,
+                    policyVerdict: detail.policy?.verdict ?? null,
+                  });
+                  return (
+                    <li key={step.step} className={state}>
+                      <div className="desk-step-top">
+                        <strong>
+                          {step.step}. {stepTitle(step.step, step.actionType)}
+                        </strong>
+                        <em>{state === "running" ? "Now" : explained.result}</em>
+                      </div>
+                      {when ? <p className="desk-step-when">{when}</p> : null}
+                      <p>{explained.what}</p>
+                      {explained.why ? <p className="desk-step-why">{explained.why}</p> : null}
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : (
+              <p className="desk-lede">No plan for this failure yet.</p>
+            )}
 
-              {proposal && !held && detail.status !== "RECOVERED" ? (
-                <p className="desk-note">{proposal.reasoning}</p>
-              ) : null}
-
-              {busy === "live" || waitClock || outcomeNow ? (
-                <section className="desk-now">
-                  <div>
-                    <p className="pill">Now</p>
-                    <strong>{ticker}</strong>
-                    {outcomeNow ? <p className={`outcome-line ${outcomeNow.tone}`}>{outcomeNow.detail}</p> : null}
-                  </div>
-                  <div className="meter">
-                    <span style={{ width: `${waitClock ? waitPct : meterPct}%` }} />
-                  </div>
-                </section>
-              ) : null}
-
-              <section className="desk-plan">
-                <p className="pill">Plan</p>
-                {(detail.playbook ?? []).length === 0 ? (
-                  <p className="muted">No recovery plan for this failure yet.</p>
-                ) : (
-                  <ol>
-                    {(detail.playbook ?? []).map((step) => {
-                      const state = stepState(detail, step.step, runningStep);
-                      const finished = latestActionForStep(detail, step.step);
-                      return (
-                        <li key={step.step} className={state}>
-                          <span className="n">{step.step}</span>
-                          <div>
-                            <strong>{actionLabel(step.actionType)}</strong>
-                            <span className="muted">{step.note}</span>
-                          </div>
-                          <span className="badge">
-                            {state === "running" ? "Now" : state === "done" ? stepResult(finished?.status ?? "EXECUTED") : "Next"}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                )}
-              </section>
-
-              <section className="desk-activity">
-                <p className="pill">What happened</p>
-                {activity.length === 0 ? (
-                  <span className="muted">Nothing yet. Start recovery to run the plan.</span>
-                ) : (
-                  activity.map((line) => (
-                    <div key={line.id} className="desk-activity-line">
-                      <strong>{line.title}</strong>
-                      {line.body ? <span className="muted">{line.body}</span> : null}
-                    </div>
-                  ))
-                )}
-              </section>
-            </>
-          )}
-        </article>
-      </div>
+            {outcomeNow && !running && outcomeNow.detail ? (
+              <p className={`desk-end ${outcomeNow.tone}`}>{outcomeNow.detail}</p>
+            ) : null}
+          </>
+        )}
+      </section>
     </div>
   );
+}
+
+function nextUseful(detail: CaseDetail, proposal: CaseProposal | null) {
+  if (detail.status === "RECOVERED") {
+    return null;
+  }
+  const skipRetries =
+    proposal?.recommendedAction === "SKIP_EXTRA_RETRY" || detail.policy?.verdict === "SKIP_RETRY";
+  const leftover = remainingSteps(detail);
+  const pick =
+    leftover.find((step) => !skipRetries || !step.actionType.includes("RETRY")) ?? leftover[0] ?? null;
+  return pick ? actionLabel(pick.actionType) : null;
+}
+
+function caseStory(
+  detail: CaseDetail,
+  state: { held: boolean; finished: boolean; running: boolean; ticker: string; next: string | null },
+) {
+  if (state.running) {
+    return state.ticker || "Recovery is running.";
+  }
+  if (detail.status === "RECOVERED") {
+    return "This payment came back. The case is closed.";
+  }
+  if (state.held) {
+    return "Held for the other person. Nothing is charged until they let it through.";
+  }
+  const skipped = (detail.actions ?? []).some(
+    (action) => action.status === "CANCELLED" && action.actionType.includes("RETRY"),
+  );
+  const linkSent = (detail.actions ?? []).some(
+    (action) => action.actionType === "SEND_PAYMENT_LINK" && action.status === "EXECUTED",
+  );
+  if (linkSent && skipped) {
+    return "The same card already failed for insufficient funds. We skipped the extra silent retries — that is the loop — and sent one payment link instead.";
+  }
+  if (linkSent) {
+    return "We sent one payment link so they can pay with another method.";
+  }
+  if (state.finished) {
+    return "Every step that should run has run. The case may still be unpaid.";
+  }
+  if (skipped && state.next) {
+    return `Silent retries on the same card were skipped. Next we ${state.next.toLowerCase()}.`;
+  }
+  if (state.next) {
+    return `Next we ${state.next.toLowerCase()}.`;
+  }
+  return "Start recovery to run this plan.";
 }
 
 function proposalFromAudit(detail: CaseDetail | null): CaseProposal | null {
@@ -509,26 +505,6 @@ function proposalFromAudit(detail: CaseDetail | null): CaseProposal | null {
     model: String(raw.model ?? "fallback-rules"),
     fallbackUsed: Boolean(raw.fallbackUsed),
   };
-}
-
-function humanAuditBody(line: { eventType: string; details: Record<string, unknown> | null }) {
-  const details = line.details;
-  if (!details) {
-    return "";
-  }
-  if (typeof details.note === "string" && details.note.trim()) {
-    return details.note;
-  }
-  if (typeof details.reasoning === "string" && details.reasoning.trim()) {
-    return details.reasoning;
-  }
-  if (typeof details.recommendedAction === "string") {
-    return actionLabel(details.recommendedAction);
-  }
-  if (typeof details.reason === "string") {
-    return prettyWords(details.reason);
-  }
-  return "";
 }
 
 function stepState(detail: CaseDetail, step: number, runningStep: number | null) {
