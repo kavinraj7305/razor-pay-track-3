@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DeskChrome, RoleGate } from "@/components/DeskChrome";
-import { adminDashboard, createDeskUser, inr, prettyError } from "@/lib/api";
-import type { DashboardSnapshot } from "@/lib/types";
+import { adminBenchmark, adminDashboard, createDeskUser, inr, pct, prettyError } from "@/lib/api";
+import type { BenchmarkReport, DashboardSnapshot } from "@/lib/types";
 
 export default function DashboardPage() {
   return (
@@ -11,7 +11,7 @@ export default function DashboardPage() {
       <DeskChrome
         kicker="CEO"
         title="Command dashboard"
-        blurb="See the money, run the desk, and add the one other person — the human in the loop."
+        blurb="See the money, the 500-event baseline-vs-AI number, and add the one other person."
       >
         <AdminBody />
       </DeskChrome>
@@ -21,6 +21,7 @@ export default function DashboardPage() {
 
 function AdminBody() {
   const [snap, setSnap] = useState<DashboardSnapshot | null>(null);
+  const [bench, setBench] = useState<BenchmarkReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
@@ -28,7 +29,9 @@ function AdminBody() {
   const [password, setPassword] = useState("");
 
   const load = useCallback(async () => {
-    setSnap(await adminDashboard());
+    const [nextSnap, nextBench] = await Promise.all([adminDashboard(), adminBenchmark()]);
+    setSnap(nextSnap);
+    setBench(nextBench);
   }, []);
 
   useEffect(() => {
@@ -75,6 +78,8 @@ function AdminBody() {
           <span className="muted">CEO · human in the loop</span>
         </article>
       </section>
+
+      {bench ? <Scoreboard report={bench} /> : null}
 
       <div className="desk-split">
         <section className="panel">
@@ -155,6 +160,87 @@ function AdminBody() {
         ))}
       </section>
     </div>
+  );
+}
+
+function Scoreboard({ report }: { report: BenchmarkReport }) {
+  return (
+    <section className="scoreboard">
+      <div className="ops-head">
+        <div>
+          <p className="pill">Baseline vs AI · 500 labelled events</p>
+          <strong>{report.pitch}</strong>
+        </div>
+        <div className="safety-chips">
+          <span className="chip">seed {report.seed}</span>
+          <span className="chip">{report.merchantId}</span>
+          {report.model.rocAuc != null ? <span className="chip">ROC-AUC {report.model.rocAuc}</span> : null}
+        </div>
+      </div>
+      <div className="score-grid">
+        <article className="score-col">
+          <p className="pill">Reason playbook</p>
+          <strong>{inr(report.baseline.recoveredInr)}</strong>
+          <span className="muted">
+            {pct(report.baseline.recoveryRate)} of {inr(report.amountAtRiskInr)} at risk · {report.baseline.recoveredCases}{" "}
+            cases
+          </span>
+          <span className="muted">
+            {report.baseline.wastedChases} wasted chases · {inr(report.baseline.wastedInr)} that never came back
+          </span>
+        </article>
+        <article className="score-col ai">
+          <p className="pill">Playbook + P + policy</p>
+          <strong>{inr(report.ai.recoveredInr)}</strong>
+          <span className="muted">
+            {pct(report.ai.recoveryRate)} recovered · {report.ai.recoveredCases} cases
+          </span>
+          <span className="muted">
+            {report.ai.wastedChases} wasted chases · {inr(report.ai.wastedInr)} doomed
+          </span>
+        </article>
+        <article className="score-col lift">
+          <p className="pill">What the model changed</p>
+          <strong>{inr(report.wastedChaseSavedInr)}</strong>
+          <span className="muted">
+            doomed chase avoided · {report.wastedChasesAvoided} fewer wasted retries
+          </span>
+          <span className="muted">
+            {report.mlSkipRetry} low-P skips · {report.policyBlocked} held for a human · recovered{" "}
+            {inr(report.recoveredDeltaInr)} vs playbook
+          </span>
+        </article>
+      </div>
+      <p className="muted score-note">
+        Oracle ceiling if every eventual payer came back: {inr(report.oracleRecoveredInr)} ({pct(report.oracleRate)}).
+        Risk cases are not auto-chased on either path. Numbers came from{" "}
+        <code>uv run python scripts/run_benchmark.py</code> — not a slide.
+      </p>
+      <div className="score-reasons">
+        {report.byReason.map((row) => (
+          <div key={row.reason} className="score-reason">
+            <span className="reason">{prettyReason(row.reason)}</span>
+            <span className="muted">{row.events}</span>
+            <span>{inr(row.baselineRecoveredInr)}</span>
+            <span>{inr(row.aiRecoveredInr)}</span>
+          </div>
+        ))}
+      </div>
+      {report.unresolved.length > 0 ? (
+        <div>
+          <p className="pill">Honest misses — AI skipped, label said they paid</p>
+          {report.unresolved.map((row) => (
+            <div key={row.eventId} className="score-miss">
+              <span className="reason">{prettyReason(row.reason)}</span>
+              <span>{inr(row.amountInr)}</span>
+              <span className="muted">
+                P={pct(row.pRecovery)} · {row.why.replaceAll("_", " ")}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 

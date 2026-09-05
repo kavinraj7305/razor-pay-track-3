@@ -1,6 +1,7 @@
 import { getSession, setSession } from "./session";
 import type {
   ApprovalItem,
+  BenchmarkReport,
   CaseDetail,
   CaseProposal,
   CaseSummary,
@@ -61,6 +62,10 @@ export function me() {
 
 export function adminDashboard() {
   return readJson<DashboardSnapshot>("/api/admin/dashboard");
+}
+
+export function adminBenchmark() {
+  return readJson<BenchmarkReport>("/api/admin/benchmark");
 }
 
 export function createDeskUser(payload: {

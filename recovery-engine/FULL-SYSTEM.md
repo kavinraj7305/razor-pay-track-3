@@ -85,6 +85,7 @@ Built in this order. Do not invert it when explaining the system.
 | **Day 3–4**       | LangGraph case agent (`/propose`) + ops brain (`/ops/briefing`)    | Propose-only. Live fallback if Ollama is down                       |
 | **Day 4**         | PolicyEngine + approval queue                                      | Java owns money. Human can override a block                         |
 | **Day 4–5**       | Two-role auth, CEO dashboard, teal desk UI                         | CEO + human in the loop. Operator seat removed                      |
+| **Day 5**         | Baseline vs AI scoreboard on the 500 labelled events               | Real ₹ numbers: playbook vs playbook + P + policy                   |
 
 
 Leftover on purpose (not built, not needed for the pitch):
@@ -211,6 +212,22 @@ API: `GET /api/admin/dashboard` → `DashboardService`
 - Recovered + failed/expired
 - People: CEO count · human-in-the-loop count
 
+### Baseline vs AI scoreboard
+
+The measured 500-event batch. Not a slide. `GET /api/admin/benchmark` serves the last run of `ml-service/scripts/run_benchmark.py`.
+
+Last run (seed 42, merchant `acc_syn_training`):
+
+| | Reason playbook | Playbook + P + policy |
+|---|---|---|
+| Recovered | **₹5,29,677** (19.2%) | **₹5,21,284** (18.9%) |
+| Wasted chases | 253 · ₹8,79,812 that never came back | 217 · ₹8,33,961 |
+| Missed eventual payers | 4 | 13 |
+
+What changed: **45** low-P retries skipped, **50** risk/high-amount cases held for a human, **36** fewer wasted chases, **₹45,851** of doomed chase avoided. Recovered rupees fell **₹8,393** (−1.6%). That is honest — the model refused some people who later paid.
+
+Oracle ceiling if every `paid_eventually` label came back: ₹5,56,179 (20.2% of ₹27,59,313 at risk). Risk is not auto-chased on either path.
+
 
 
 ### Why money is stuck
@@ -243,7 +260,7 @@ Name, email, temporary password. Always creates `APPROVER`. No role dropdown.
 
 Active CEO and human-in-the-loop only. Operator rows are hidden.
 
-Training merchant `acc_syn_training` is excluded from the live desk and from the approval queue so synthetic training rows do not clutter the CEO view.
+Training merchant `acc_syn_training` is excluded from the live desk and from the approval queue so synthetic training rows do not clutter the CEO view. The **500-event scoreboard** on this page is the measured batch from that merchant.
 
 ---
 
@@ -391,6 +408,7 @@ Interceptor: `auth/AuthInterceptor.java` + `@RequireRole`. Config: `config/AuthW
 | Method | Path                   | What                              |
 | ------ | ---------------------- | --------------------------------- |
 | GET    | `/api/admin/dashboard` | Snapshot: rupees, reasons, people |
+| GET    | `/api/admin/benchmark` | 500-event baseline vs AI scoreboard (from the last real run) |
 | POST   | `/api/admin/users`     | Create human-in-the-loop user     |
 
 
@@ -677,7 +695,7 @@ Root package: `com.razorpayhackthon.revenue_recovery`
 | File                                        | What                                     |
 | ------------------------------------------- | ---------------------------------------- |
 | `controller/AuthController.java`            | Demo, login, me, logout                  |
-| `controller/AdminController.java`           | Dashboard + create user                  |
+| `controller/AdminController.java`           | Dashboard, benchmark, create user        |
 | `controller/ApprovalController.java`        | Pending / approve / reject               |
 | `controller/RecoveryCaseController.java`    | List, get, plan, execute, agent-proposal |
 | `controller/WebhookSimulateController.java` | The 8 slugs + `/all`                     |
@@ -700,6 +718,7 @@ Root package: `com.razorpayhackthon.revenue_recovery`
 | `service/auth/PasswordHasher.java`             | Hash / verify                                        |
 | `service/auth/ApprovalService.java`            | Queue + approve/reject audit                         |
 | `service/auth/DashboardService.java`           | CEO snapshot                                         |
+| `service/auth/BenchmarkService.java`           | Last 500-event baseline vs AI run                    |
 | `entity/DeskUser.java` + `enums/DeskRole.java` | Stored user                                          |
 | `repository/DeskUserRepository.java`           | Lookup by email / token                              |
 
@@ -806,6 +825,9 @@ Low P may skip a retry only if that customer also has ≥5 history payments — 
 | `ml-service/scripts/refresh_features.py`   | Features from existing Postgres tables (no new table) |
 | `ml-service/scripts/train_model.py`        | Train/test, write metrics                             |
 | `ml-service/scripts/seed_postgres.py`      | Seed helper                                           |
+| `ml-service/scripts/run_benchmark.py`      | Score 500 events with the trained model + Java rules  |
+| `ml-service/data/benchmark.json`           | Last real baseline-vs-AI run                          |
+| `backend/.../resources/benchmark/acc_syn_training_500.json` | Same file, served by the desk     |
 | `ml-service/models/recovery_xgb.json`      | Trained booster                                       |
 | `ml-service/models/feature_spec.json`      | Categories + numeric list                             |
 | `ml-service/data/predict_metrics.json`     | Precision / recall / F1 / ROC-AUC / PR-AUC            |
@@ -972,6 +994,7 @@ cd ml-service
 uv run python scripts/generate_synthetic.py
 uv run python scripts/refresh_features.py
 uv run python scripts/train_model.py
+uv run python scripts/run_benchmark.py
 ```
 
 ---
@@ -981,14 +1004,15 @@ uv run python scripts/train_model.py
 ## 23. A full demo path (both people)
 
 1. Sign in as **CEO** (`ceo@recovery.local` / `admin123`).
-2. Open **Recovery desk**.
-3. Create **risk-failed** and a high amount **insufficient-funds** (₹80,000+).
-4. Press **Start** on a blocked case. Desk stops. Policy owns it.
-5. Optional: **Ask agent** on a weak NSF case — show `deviates_from_playbook`. Stop Ollama and ask again — show `fallback_used`.
-6. Sign out. Sign in as **human in the loop** (`policy@recovery.local` / `approve123`).
-7. Open the queue. Read the row, write a note, **Let it through** or **Hold it**.
-8. Sign back in as CEO. Start again. Approved cases continue the playbook.
-9. Create **payment-captured** (or `/simulate/all`) to show a case close as recovered.
+2. On the dashboard, read the **Baseline vs AI** scoreboard — ₹5.30L playbook vs ₹5.21L AI, ₹45,851 doomed chase avoided.
+3. Open **Recovery desk**.
+4. Create **risk-failed** and a high amount **insufficient-funds** (₹80,000+).
+5. Press **Start** on a blocked case. Desk stops. Policy owns it.
+6. Optional: **Ask agent** on a weak NSF case — show `deviates_from_playbook`. Stop Ollama and ask again — show `fallback_used`.
+7. Sign out. Sign in as **human in the loop** (`policy@recovery.local` / `approve123`).
+8. Open the queue. Read the row, write a note, **Let it through** or **Hold it**.
+9. Sign back in as CEO. Start again. Approved cases continue the playbook.
+10. Create **payment-captured** (or `/simulate/all`) to show a case close as recovered.
 
 ### 23b. Real signed webhook (the HMAC credibility close)
 
@@ -1017,6 +1041,7 @@ Judge questions we can answer live:
 | Ollama down?          | `fallback_used: true` on the desk                            |
 | Did money come back?  | Captured simulate → `RECOVERED` + audit                      |
 | Show me HMAC firing   | Desk **Razorpay HMAC** chip + `prove-live-webhook.ps1`       |
+| What is the ₹ number? | Dashboard scoreboard: ₹5.30L playbook vs ₹5.21L AI, ₹45,851 doomed chase avoided |
 
 
 ---
@@ -1061,6 +1086,7 @@ Official bar: **detect → diagnose → act → stop → prove ₹ recovered**, 
 | What we did         | Distinct `recovery_action` per reason                              |
 | Did it stop         | PolicyEngine + approval queue + max 3 retries                      |
 | Did money come back | `payment.captured` → `RECOVERED`                                   |
+| Prove ₹ across a batch | Dashboard scoreboard: 500 events, playbook vs AI, wasted-chase ₹ |
 | Can we trust it     | `audit_event` for detect / ML / propose / policy / execute / close |
 
 

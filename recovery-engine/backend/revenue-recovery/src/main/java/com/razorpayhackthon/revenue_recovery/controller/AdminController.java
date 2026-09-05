@@ -8,8 +8,10 @@ import com.razorpayhackthon.revenue_recovery.dto.auth.DashboardSnapshot;
 import com.razorpayhackthon.revenue_recovery.dto.auth.UserRow;
 import com.razorpayhackthon.revenue_recovery.enums.DeskRole;
 import com.razorpayhackthon.revenue_recovery.service.auth.AuthService;
+import com.razorpayhackthon.revenue_recovery.service.auth.BenchmarkService;
 import com.razorpayhackthon.revenue_recovery.service.auth.DashboardService;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,15 +27,23 @@ public class AdminController {
 
 	private final DashboardService dashboardService;
 	private final AuthService authService;
+	private final BenchmarkService benchmarkService;
 
-	public AdminController(DashboardService dashboardService, AuthService authService) {
+	public AdminController(
+			DashboardService dashboardService, AuthService authService, BenchmarkService benchmarkService) {
 		this.dashboardService = dashboardService;
 		this.authService = authService;
+		this.benchmarkService = benchmarkService;
 	}
 
 	@GetMapping(path = "/dashboard", produces = MediaType.APPLICATION_JSON_VALUE)
 	public DashboardSnapshot dashboard() {
 		return dashboardService.snapshot();
+	}
+
+	@GetMapping(path = "/benchmark", produces = MediaType.APPLICATION_JSON_VALUE)
+	public Map<String, Object> benchmark() {
+		return benchmarkService.latest();
 	}
 
 	@GetMapping(path = "/users", produces = MediaType.APPLICATION_JSON_VALUE)

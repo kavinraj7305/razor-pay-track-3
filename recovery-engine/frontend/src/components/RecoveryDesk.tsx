@@ -500,6 +500,7 @@ export function RecoveryDesk() {
                 await createAllIssues();
                 await refresh(selectedId);
                 await loadBriefing();
+                await loadInbox();
               })
             }
           >

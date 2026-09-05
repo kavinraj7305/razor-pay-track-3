@@ -144,6 +144,65 @@ export type ReasonCount = {
   count: number;
 };
 
+export type BenchmarkPath = {
+  chases: number;
+  recoveredCases: number;
+  recoveredInr: number;
+  recoveryRate: number;
+  wastedChases: number;
+  wastedInr: number;
+  missedCases: number;
+  missedInr: number;
+  correctSkips: number;
+};
+
+export type BenchmarkReason = {
+  reason: string;
+  events: number;
+  amountAtRiskInr: number;
+  baselineRecoveredInr: number;
+  aiRecoveredInr: number;
+};
+
+export type BenchmarkUnresolved = {
+  eventId: string;
+  reason: string;
+  amountInr: number;
+  pRecovery: number;
+  why: string;
+};
+
+export type BenchmarkReport = {
+  ranAt: string;
+  merchantId: string;
+  seed: number;
+  events: number;
+  labelledPaid: number;
+  amountAtRiskInr: number;
+  oracleRecoveredInr: number;
+  oracleRate: number;
+  baseline: BenchmarkPath;
+  ai: BenchmarkPath;
+  recoveredDeltaInr: number;
+  incrementalPct: number;
+  wastedChaseSavedInr: number;
+  wastedChasesAvoided: number;
+  policyBlocked: number;
+  humanEscalations: number;
+  mlSkipRetry: number;
+  auditCoveragePct: number;
+  model: {
+    file: string;
+    rocAuc: number | null;
+    prAuc: number | null;
+    f1: number | null;
+    threshold: number;
+  };
+  byReason: BenchmarkReason[];
+  unresolved: BenchmarkUnresolved[];
+  pitch: string;
+};
+
 export type DashboardSnapshot = {
   cases: number;
   open: number;

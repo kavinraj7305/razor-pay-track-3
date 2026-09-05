@@ -1043,6 +1043,80 @@ button {
   border-color: var(--navy);
 }
 
+.scoreboard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 0.95rem 1rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.scoreboard > .ops-head strong {
+  font-size: 0.98rem;
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.score-col {
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 0.75rem 0.8rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.score-col.ai {
+  border-color: #3aa89a;
+  background: #e7f6f2;
+}
+
+.score-col.lift {
+  border-color: #9cc4b8;
+  background: #f3faf7;
+}
+
+.score-col strong {
+  font-family: var(--font-display), "Source Serif 4", "Times New Roman", serif;
+  font-size: 1.45rem;
+}
+
+.score-note {
+  margin: 0;
+}
+
+.score-reasons {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.score-reason,
+.score-miss {
+  display: grid;
+  grid-template-columns: 1.4fr 3rem 1fr 1fr;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 0.88rem;
+}
+
+.score-miss {
+  grid-template-columns: 1.4fr 7rem 1fr;
+}
+
+@media (max-width: 900px) {
+  .score-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .stat strong,
 .role-card strong {
   display: block;

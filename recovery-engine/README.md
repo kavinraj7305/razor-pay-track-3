@@ -58,6 +58,13 @@ cd agent-service && uv run uvicorn app.main:app --reload --port 8002
 cd frontend && npm run dev
 ```
 
+Scoreboard (already generated in-repo; re-run after changing the model or the 500-row batch):
+
+```bash
+cd ml-service
+uv run python scripts/run_benchmark.py
+```
+
 Backend health: `http://localhost:8080/actuator/health`
 
 ## Step 1.3 — Razorpay Test Mode
