@@ -6,9 +6,30 @@ import { listDemoAccounts, login, prettyError } from "@/lib/api";
 import { getSession, homeFor, setSession } from "@/lib/session";
 import type { DemoAccount, DeskRole } from "@/lib/types";
 
+const TWO_PEOPLE: DemoAccount[] = [
+  {
+    email: "ceo@recovery.local",
+    password: "admin123",
+    role: "ADMIN",
+    displayName: "Priya Shah · CEO",
+    sees: "Dashboard and recovery desk",
+  },
+  {
+    email: "policy@recovery.local",
+    password: "approve123",
+    role: "APPROVER",
+    displayName: "Arjun Mehta · Human in the loop",
+    sees: "Approval queue only",
+  },
+];
+
+function onlyTwoPeople(accounts: DemoAccount[]) {
+  return accounts.filter((account) => account.role === "ADMIN" || account.role === "APPROVER").slice(0, 2);
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const [accounts, setAccounts] = useState<DemoAccount[]>([]);
+  const [accounts, setAccounts] = useState<DemoAccount[]>(TWO_PEOPLE);
   const [email, setEmail] = useState("ceo@recovery.local");
   const [password, setPassword] = useState("admin123");
   const [error, setError] = useState<string | null>(null);
@@ -21,32 +42,11 @@ export default function LoginPage() {
       return;
     }
     void listDemoAccounts()
-      .then(setAccounts)
-      .catch(() =>
-        setAccounts([
-          {
-            email: "ceo@recovery.local",
-            password: "admin123",
-            role: "ADMIN",
-            displayName: "Priya Shah · CEO",
-            sees: "Everything",
-          },
-          {
-            email: "policy@recovery.local",
-            password: "approve123",
-            role: "APPROVER",
-            displayName: "Arjun Mehta · Policy guard",
-            sees: "Approval queue",
-          },
-          {
-            email: "desk@recovery.local",
-            password: "operate123",
-            role: "OPERATOR",
-            displayName: "Neha Iyer · Recovery desk",
-            sees: "Create and run cases",
-          },
-        ]),
-      );
+      .then((rows) => {
+        const next = onlyTwoPeople(rows);
+        setAccounts(next.length === 2 ? next : TWO_PEOPLE);
+      })
+      .catch(() => setAccounts(TWO_PEOPLE));
   }, [router]);
 
   async function submit(nextEmail = email, nextPassword = password) {
@@ -76,9 +76,9 @@ export default function LoginPage() {
     <div className="desk">
       <header className="desk-bar">
         <div>
-          <p className="pill">Enterprise recovery · three roles</p>
+          <p className="pill">Two people</p>
           <h1>Sign in</h1>
-          <p>CEO sees everything. Policy guard approves blocks. Desk operator creates cases and runs the playbook.</p>
+          <p>CEO runs the desk. One other person sits in the loop and signs off blocked cases.</p>
         </div>
       </header>
       <div className="wrap login-wrap">
@@ -140,11 +140,5 @@ export default function LoginPage() {
 }
 
 function labelFor(role: DeskRole) {
-  if (role === "ADMIN") {
-    return "CEO · Admin";
-  }
-  if (role === "APPROVER") {
-    return "Human in the loop";
-  }
-  return "Operator";
+  return role === "APPROVER" ? "Human in the loop" : "CEO";
 }

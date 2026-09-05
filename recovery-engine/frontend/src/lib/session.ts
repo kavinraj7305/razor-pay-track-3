@@ -41,21 +41,9 @@ export function setSession(session: Session | null) {
 }
 
 export function homeFor(role: DeskRole) {
-  if (role === "ADMIN") {
-    return "/dashboard";
-  }
-  if (role === "APPROVER") {
-    return "/approvals";
-  }
-  return "/desk";
+  return role === "APPROVER" ? "/approvals" : "/dashboard";
 }
 
 export function roleLabel(role: DeskRole) {
-  if (role === "ADMIN") {
-    return "CEO · Admin";
-  }
-  if (role === "APPROVER") {
-    return "Policy guard";
-  }
-  return "Recovery desk";
+  return role === "APPROVER" ? "Human in the loop" : "CEO";
 }

@@ -2,6 +2,7 @@ package com.razorpayhackthon.revenue_recovery.service.auth;
 
 import com.razorpayhackthon.revenue_recovery.dto.auth.DemoAccount;
 import com.razorpayhackthon.revenue_recovery.entity.DeskUser;
+import com.razorpayhackthon.revenue_recovery.enums.DeskRole;
 import com.razorpayhackthon.revenue_recovery.repository.DeskUserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,11 +23,12 @@ public class DeskUserSeeder implements ApplicationRunner {
 
 	@Override
 	public void run(ApplicationArguments args) {
-		if (deskUserRepository.count() > 0) {
-			return;
-		}
 		int index = 1;
 		for (DemoAccount demo : AuthService.DEMO_ACCOUNTS) {
+			if (deskUserRepository.findByEmailIgnoreCase(demo.email()).isPresent()) {
+				index++;
+				continue;
+			}
 			DeskUser user = new DeskUser();
 			user.setUserId("usr_demo_" + index++);
 			user.setEmail(demo.email());
@@ -36,6 +38,13 @@ public class DeskUserSeeder implements ApplicationRunner {
 			user.setActive(Boolean.TRUE);
 			deskUserRepository.save(user);
 		}
-		log.info("Seeded CEO, policy guard, and operator demo users");
+		deskUserRepository.findAllByOrderByCreatedAtAsc().stream()
+				.filter(user -> user.getRole() == DeskRole.OPERATOR)
+				.forEach(user -> {
+					user.setActive(Boolean.FALSE);
+					user.setSessionToken(null);
+					deskUserRepository.save(user);
+				});
+		log.info("Desk has two roles — CEO and human in the loop");
 	}
 }

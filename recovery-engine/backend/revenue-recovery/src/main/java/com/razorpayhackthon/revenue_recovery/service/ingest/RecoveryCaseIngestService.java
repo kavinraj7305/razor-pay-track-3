@@ -6,8 +6,10 @@ import com.razorpayhackthon.revenue_recovery.entity.RecoveryCase;
 import com.razorpayhackthon.revenue_recovery.entity.WebhookEvent;
 import com.razorpayhackthon.revenue_recovery.enums.RecoveryCaseStatus;
 import com.razorpayhackthon.revenue_recovery.enums.RecoverySource;
+import com.razorpayhackthon.revenue_recovery.enums.WebhookIntake;
 import com.razorpayhackthon.revenue_recovery.repository.RecoveryCaseRepository;
 import com.razorpayhackthon.revenue_recovery.repository.WebhookEventRepository;
+import com.razorpayhackthon.revenue_recovery.service.plan.AuditWriter;
 import com.razorpayhackthon.revenue_recovery.service.plan.BaselineActionPlanner;
 import com.razorpayhackthon.revenue_recovery.webhook.ParsedRazorpayEvent;
 import com.razorpayhackthon.revenue_recovery.webhook.RazorpayWebhookParser;
@@ -36,6 +38,7 @@ public class RecoveryCaseIngestService {
 	private final MerchantCustomerService merchantCustomerService;
 	private final RecoverySourceWriter recoverySourceWriter;
 	private final BaselineActionPlanner baselineActionPlanner;
+	private final AuditWriter auditWriter;
 
 	public RecoveryCaseIngestService(
 			RazorpayWebhookParser parser,
@@ -45,7 +48,8 @@ public class RecoveryCaseIngestService {
 			RecoveryCaseDraftFactory draftFactory,
 			MerchantCustomerService merchantCustomerService,
 			RecoverySourceWriter recoverySourceWriter,
-			BaselineActionPlanner baselineActionPlanner) {
+			BaselineActionPlanner baselineActionPlanner,
+			AuditWriter auditWriter) {
 		this.parser = parser;
 		this.jsonMapper = jsonMapper;
 		this.webhookEventRepository = webhookEventRepository;
@@ -54,6 +58,7 @@ public class RecoveryCaseIngestService {
 		this.merchantCustomerService = merchantCustomerService;
 		this.recoverySourceWriter = recoverySourceWriter;
 		this.baselineActionPlanner = baselineActionPlanner;
+		this.auditWriter = auditWriter;
 	}
 
 	@Transactional
@@ -73,6 +78,7 @@ public class RecoveryCaseIngestService {
 		}
 		stored.setProcessed(true);
 		webhookEventRepository.save(stored);
+		auditHmacIfSigned(stored, parsed);
 	}
 
 	private WebhookEvent persistInbox(ParsedRazorpayEvent parsed) {
@@ -84,10 +90,50 @@ public class RecoveryCaseIngestService {
 		stored.setEventId(parsed.eventId());
 		stored.setProvider("RAZORPAY");
 		stored.setEventType(parsed.eventType());
+		stored.setIntake(WebhookIntake.DESK_SIMULATE.name());
+		stored.setSignatureVerified(false);
 		@SuppressWarnings("unchecked")
 		Map<String, Object> payload = jsonMapper.convertValue(parsed.root(), Map.class);
 		stored.setPayload(payload);
 		return webhookEventRepository.save(stored);
+	}
+
+	private void auditHmacIfSigned(WebhookEvent stored, ParsedRazorpayEvent parsed) {
+		if (!stored.isSignatureVerified()) {
+			return;
+		}
+		JsonNode payload = parsed.root().get("payload");
+		String sourceId = WebhookPayloadSupport.firstNonBlank(
+				WebhookPayloadSupport.idOf(payload, "payment"),
+				WebhookPayloadSupport.idOf(payload, "subscription"),
+				WebhookPayloadSupport.idOf(payload, "invoice"),
+				WebhookPayloadSupport.idOf(payload, "checkout"),
+				WebhookPayloadSupport.idOf(payload, "order"));
+		if (sourceId == null) {
+			return;
+		}
+		for (RecoverySource source : RecoverySource.values()) {
+			for (RecoveryCase recoveryCase : recoveryCaseRepository.findBySourceAndSourceId(source, sourceId)) {
+				auditWriter.write(
+						recoveryCase,
+						"WEBHOOK_HMAC_VERIFIED",
+						"ACK",
+						"SYSTEM",
+						"razorpay-webhook",
+						Map.of(
+								"eventId",
+								parsed.eventId(),
+								"eventType",
+								parsed.eventType(),
+								"accountId",
+								parsed.accountId(),
+								"intake",
+								WebhookIntake.HMAC_SIGNED.name(),
+								"signatureVerified",
+								true));
+				return;
+			}
+		}
 	}
 
 	private void openCase(ParsedRazorpayEvent parsed) {

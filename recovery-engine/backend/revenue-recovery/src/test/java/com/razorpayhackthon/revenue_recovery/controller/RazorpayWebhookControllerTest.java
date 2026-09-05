@@ -1,5 +1,8 @@
 package com.razorpayhackthon.revenue_recovery.controller;
 
+import com.razorpayhackthon.revenue_recovery.entity.WebhookEvent;
+import com.razorpayhackthon.revenue_recovery.enums.WebhookIntake;
+import com.razorpayhackthon.revenue_recovery.repository.WebhookEventRepository;
 import com.razorpayhackthon.revenue_recovery.webhook.RazorpaySignatureVerifier;
 import com.razorpayhackthon.revenue_recovery.webhook.RedisWebhookIdempotencyStore;
 import com.razorpayhackthon.revenue_recovery.webhook.WebhookAck;
@@ -54,6 +57,9 @@ class RazorpayWebhookControllerTest {
 	@Autowired
 	private JsonMapper jsonMapper;
 
+	@Autowired
+	private WebhookEventRepository webhookEventRepository;
+
 	@MockitoBean
 	private KafkaTemplate<String, String> kafkaTemplate;
 
@@ -62,6 +68,7 @@ class RazorpayWebhookControllerTest {
 		when(kafkaTemplate.send(anyString(), anyString(), anyString()))
 				.thenReturn(CompletableFuture.completedFuture(null));
 		redis.delete(RedisWebhookIdempotencyStore.key("evt_test_fail_1"));
+		webhookEventRepository.findByEventId("evt_test_fail_1").ifPresent(webhookEventRepository::delete);
 	}
 
 	@Test
@@ -83,6 +90,11 @@ class RazorpayWebhookControllerTest {
 		WebhookAck ack = jsonMapper.readValue(first.getResponse().getContentAsByteArray(), WebhookAck.class);
 		assertThat(ack.eventId()).isEqualTo("evt_test_fail_1");
 		verify(kafkaTemplate).send(eq("payment.events"), eq("evt_test_fail_1"), eq(BODY));
+
+		WebhookEvent stored = webhookEventRepository.findByEventId("evt_test_fail_1").orElseThrow();
+		assertThat(stored.getIntake()).isEqualTo(WebhookIntake.HMAC_SIGNED.name());
+		assertThat(stored.isSignatureVerified()).isTrue();
+		assertThat(stored.getEventType()).isEqualTo("payment.failed");
 
 		mockMvc.perform(
 						post("/webhooks/razorpay")

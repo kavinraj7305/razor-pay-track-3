@@ -180,3 +180,24 @@ export type SimulateResult = {
   actionType: string | null;
   intendedAction: string;
 };
+
+export type WebhookInboxItem = {
+  eventId: string;
+  eventType: string;
+  accountId: string | null;
+  intake: "HMAC_SIGNED" | "DESK_SIMULATE" | string;
+  signatureVerified: boolean;
+  origin: "RAZORPAY" | "LOCAL_SCRIPT" | "DESK_SIMULATE" | string;
+  processed: boolean;
+  receivedAt: string | null;
+  sourceId: string | null;
+  caseId: string | null;
+  reason: string | null;
+};
+
+export type WebhookInboxSnapshot = {
+  signedCount: number;
+  razorpayCount: number;
+  simulateCount: number;
+  events: WebhookInboxItem[];
+};

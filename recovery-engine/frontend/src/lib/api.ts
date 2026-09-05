@@ -12,6 +12,7 @@ import type {
   Session,
   SimulateResult,
   UserRow,
+  WebhookInboxSnapshot,
 } from "./types";
 
 function authHeaders(): HeadersInit {
@@ -37,8 +38,9 @@ async function readJson<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function listDemoAccounts() {
-  return readJson<DemoAccount[]>("/api/auth/demo");
+export async function listDemoAccounts() {
+  const rows = await readJson<DemoAccount[]>("/api/auth/demo");
+  return rows.filter((account) => account.role === "ADMIN" || account.role === "APPROVER");
 }
 
 export function login(email: string, password: string) {
@@ -100,6 +102,10 @@ export function rejectCase(caseId: string, note: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ note }),
   });
+}
+
+export function webhookInbox() {
+  return readJson<WebhookInboxSnapshot>("/api/webhooks/inbox");
 }
 
 export function listScenarios() {

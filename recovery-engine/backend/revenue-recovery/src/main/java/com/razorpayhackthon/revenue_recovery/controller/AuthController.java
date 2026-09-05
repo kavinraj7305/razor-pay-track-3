@@ -4,6 +4,7 @@ import com.razorpayhackthon.revenue_recovery.auth.AuthContext;
 import com.razorpayhackthon.revenue_recovery.dto.auth.DemoAccount;
 import com.razorpayhackthon.revenue_recovery.dto.auth.LoginRequest;
 import com.razorpayhackthon.revenue_recovery.dto.auth.SessionResponse;
+import com.razorpayhackthon.revenue_recovery.enums.DeskRole;
 import com.razorpayhackthon.revenue_recovery.service.auth.AuthService;
 import java.util.List;
 import org.springframework.http.MediaType;
@@ -25,7 +26,9 @@ public class AuthController {
 
 	@GetMapping(path = "/demo", produces = MediaType.APPLICATION_JSON_VALUE)
 	public List<DemoAccount> demo() {
-		return AuthService.DEMO_ACCOUNTS;
+		return AuthService.DEMO_ACCOUNTS.stream()
+				.filter(account -> account.role() != DeskRole.OPERATOR)
+				.toList();
 	}
 
 	@PostMapping(path = "/login", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)

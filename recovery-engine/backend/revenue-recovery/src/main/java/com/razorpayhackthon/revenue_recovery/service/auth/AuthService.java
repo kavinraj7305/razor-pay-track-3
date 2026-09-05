@@ -26,19 +26,13 @@ public class AuthService {
 					"admin123",
 					DeskRole.ADMIN,
 					"Priya Shah · CEO",
-					"Everything — cases, money at risk, who is on the desk"),
+					"Dashboard, recovery desk, and the queue"),
 			new DemoAccount(
 					"policy@recovery.local",
 					"approve123",
 					DeskRole.APPROVER,
-					"Arjun Mehta · Policy guard",
-					"Middle queue — approve or reject what PolicyEngine blocked"),
-			new DemoAccount(
-					"desk@recovery.local",
-					"operate123",
-					DeskRole.OPERATOR,
-					"Neha Iyer · Recovery desk",
-					"Create issues and run the playbook — cannot assign roles or approve"));
+					"Arjun Mehta · Human in the loop",
+					"The approval queue only"));
 
 	private final DeskUserRepository deskUserRepository;
 
@@ -121,10 +115,10 @@ public class AuthService {
 	}
 
 	private DeskRole assignable(DeskRole role) {
-		if (role == DeskRole.APPROVER || role == DeskRole.OPERATOR) {
+		if (role == DeskRole.APPROVER) {
 			return role;
 		}
-		throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "admin can only assign APPROVER or OPERATOR");
+		throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "the only extra role is the human in the loop");
 	}
 
 	private SessionResponse toSession(DeskUser user) {

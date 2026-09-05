@@ -79,8 +79,11 @@ class RecoveryCaseIngestServiceTest {
 		assertThat(webhookEventRepository.findByEventId("evt_case_fail_1"))
 				.isPresent()
 				.get()
-				.extracting("processed")
-				.isEqualTo(true);
+				.satisfies(event -> {
+					assertThat(event.isProcessed()).isTrue();
+					assertThat(event.getIntake()).isEqualTo("DESK_SIMULATE");
+					assertThat(event.isSignatureVerified()).isFalse();
+				});
 
 		ingestService.consume(FAILED);
 		assertThat(

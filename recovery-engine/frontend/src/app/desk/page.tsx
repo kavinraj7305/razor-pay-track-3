@@ -5,11 +5,11 @@ import { RecoveryDesk } from "@/components/RecoveryDesk";
 
 export default function DeskPage() {
   return (
-    <RoleGate allow={["OPERATOR", "ADMIN"]}>
+    <RoleGate allow={["ADMIN"]}>
       <DeskChrome
-        kicker="Operator desk · add issues · run playbook"
+        kicker="CEO desk"
         title="Recovery desk"
-        blurb="Create failures and run the live process. You cannot assign roles or approve policy blocks — that is CEO and the policy guard."
+        blurb="Create the failures and run the playbook. When policy stops a case, it waits for the other person."
       >
         <RecoveryDesk />
       </DeskChrome>

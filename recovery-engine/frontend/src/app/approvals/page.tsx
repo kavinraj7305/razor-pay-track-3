@@ -9,9 +9,9 @@ export default function ApprovalsPage() {
   return (
     <RoleGate allow={["APPROVER", "ADMIN"]}>
       <DeskChrome
-        kicker="Human in the loop · policy guard"
+        kicker="Needs a person"
         title="Approval queue"
-        blurb="These cases are in the middle — PolicyEngine blocked execute. Approve so the desk can continue, or reject and keep the money untouched."
+        blurb="Policy stopped these before any retry went out. Read the case, write why, then let it through or keep the hold."
       >
         <QueueBody />
       </DeskChrome>
@@ -61,8 +61,7 @@ function QueueBody() {
           <p className="pill">Queue clear</p>
           <h2>Nothing waiting on policy</h2>
           <p className="muted">
-            Ask the operator to start a risk or high-amount case — those land here for a human
-            decision.
+            Ask the CEO to start a risk or high-amount case on the desk — those land here.
           </p>
         </section>
       ) : (
@@ -74,7 +73,7 @@ function QueueBody() {
                 {rows.length} {rows.length === 1 ? "case" : "cases"}
               </strong>
             </div>
-            <span className="muted">{inr(blocked)} still blocked by PolicyEngine</span>
+            <span className="muted">{inr(blocked)} still sitting here</span>
           </section>
           <div className="approval-list">
             {rows.map((row) => {
@@ -132,7 +131,7 @@ function QueueBody() {
                         disabled={busy !== null}
                         onClick={() => void decide(row.caseId, "reject")}
                       >
-                        {busy === `reject-${row.caseId}` ? "Holding…" : "Reject / hold"}
+                        {busy === `reject-${row.caseId}` ? "Holding…" : "Hold it"}
                       </button>
                       <button
                         className="start-btn"
@@ -140,7 +139,7 @@ function QueueBody() {
                         disabled={busy !== null}
                         onClick={() => void decide(row.caseId, "approve")}
                       >
-                        {busy === `approve-${row.caseId}` ? "Approving…" : "Approve execute"}
+                        {busy === `approve-${row.caseId}` ? "Sending…" : "Let it through"}
                       </button>
                     </div>
                   </div>

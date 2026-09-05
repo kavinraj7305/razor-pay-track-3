@@ -113,3 +113,18 @@ cd scripts/razorpay
 ```
 
 Postman: import `scripts/razorpay/Razorpay-Test-Mode.postman_collection.json` and set `keyId`, `keySecret`, `webhookSecret`.
+
+### 5. Prove a real signed webhook (not `/simulate`)
+
+Desk create-buttons skip HMAC. To show a judge Razorpay itself signed the POST:
+
+```powershell
+# window 1 — expose :8080
+cd scripts/razorpay
+.\tunnel.ps1
+
+# window 2 — wait for origin=RAZORPAY
+.\prove-live-webhook.ps1
+```
+
+Then either **Send Test Webhook** on the registered endpoint, or pay the printed payment-link with failing card `4012001037141112`. The desk `/desk` strip **Live signed intake** should show `Razorpay HMAC`. That row is `webhook_event.intake=HMAC_SIGNED` + `signature_verified=true`. Local `simulate-webhooks.ps1` is HMAC too, but origin stays `LOCAL_SCRIPT`.

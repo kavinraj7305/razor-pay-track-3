@@ -36,6 +36,8 @@ if (Find-Command "cloudflared") {
 	Write-Host "          subscription.pending, subscription.halted, subscription.charged,"
 	Write-Host "          invoice.paid, invoice.expired"
 	Write-Host "Test-mode webhook OTP is 754081."
+	Write-Host "Then in another window prove HMAC from Razorpay servers:"
+	Write-Host "  .\prove-live-webhook.ps1"
 	Write-Host ""
 	& cloudflared tunnel --url "http://localhost:$Port"
 	exit $LASTEXITCODE

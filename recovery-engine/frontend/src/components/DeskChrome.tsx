@@ -9,7 +9,7 @@ import { getSession, homeFor, roleLabel, setSession, type DeskRole, type Session
 const LINKS: { href: string; label: string; roles: DeskRole[] }[] = [
   { href: "/dashboard", label: "CEO dashboard", roles: ["ADMIN"] },
   { href: "/approvals", label: "Policy queue", roles: ["ADMIN", "APPROVER"] },
-  { href: "/desk", label: "Recovery desk", roles: ["ADMIN", "OPERATOR"] },
+  { href: "/desk", label: "Recovery desk", roles: ["ADMIN"] },
 ];
 
 export function RoleGate({ allow, children }: { allow: DeskRole[]; children: ReactNode }) {
@@ -85,6 +85,8 @@ export function DeskChrome({
               {link.label}
             </Link>
           ))}
+        </div>
+        <div className="role-out">
           <button className="ghost-btn" type="button" onClick={() => void signOut()}>
             Sign out
           </button>

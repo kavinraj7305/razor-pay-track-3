@@ -13,6 +13,7 @@ import {
   pct,
   proposeCase,
   recordAgentProposal,
+  webhookInbox,
 } from "@/lib/api";
 import {
   latestActionForStep,
@@ -21,7 +22,14 @@ import {
   type LogLine,
 } from "@/lib/narrative";
 import { completedSteps, progressLabel, remainingSteps, sleep } from "@/lib/progress";
-import type { CaseDetail, CaseProposal, CaseSummary, OpsBriefing, Scenario } from "@/lib/types";
+import type {
+  CaseDetail,
+  CaseProposal,
+  CaseSummary,
+  OpsBriefing,
+  Scenario,
+  WebhookInboxSnapshot,
+} from "@/lib/types";
 
 type Phase = "idle" | "detect" | "score" | "act" | "done";
 
@@ -133,6 +141,7 @@ export function RecoveryDesk() {
   const [log, setLog] = useState<LogLine[]>([]);
   const [proposal, setProposal] = useState<CaseProposal | null>(null);
   const [briefing, setBriefing] = useState<OpsBriefing | null>(null);
+  const [inbox, setInbox] = useState<WebhookInboxSnapshot | null>(null);
   const runToken = useRef(0);
 
   const loadBriefing = useCallback(async () => {
@@ -140,6 +149,14 @@ export function RecoveryDesk() {
       setBriefing(await opsBriefing(6));
     } catch {
       setBriefing(null);
+    }
+  }, []);
+
+  const loadInbox = useCallback(async () => {
+    try {
+      setInbox(await webhookInbox());
+    } catch {
+      setInbox(null);
     }
   }, []);
 
@@ -169,6 +186,7 @@ export function RecoveryDesk() {
         }
         await refresh();
         void loadBriefing();
+        void loadInbox();
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Backend is not reachable on :8080");
@@ -178,7 +196,14 @@ export function RecoveryDesk() {
     return () => {
       cancelled = true;
     };
-  }, [refresh, loadBriefing]);
+  }, [refresh, loadBriefing, loadInbox]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void loadInbox();
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [loadInbox]);
 
   async function run(label: string, work: () => Promise<void>) {
     setBusy(label);
@@ -346,7 +371,7 @@ export function RecoveryDesk() {
             setOutcomeNow({
               label: "Waiting for approval",
               tone: "stop",
-              detail: "Operator cannot force a blocked case. Approver signs off, then Start can continue.",
+              detail: "This case waits for the human in the loop. After they sign off, Start can continue.",
             });
             pushLog({
               clock: story.clockLabel,
@@ -514,6 +539,60 @@ export function RecoveryDesk() {
           ))}
         </section>
 
+        <section className="hmac-strip">
+          <div className="ops-head">
+            <div>
+              <p className="pill">Live signed intake · POST /webhooks/razorpay</p>
+              <strong>
+                {inbox == null
+                  ? "Inbox not loaded yet."
+                  : inbox.razorpayCount > 0
+                    ? `${inbox.razorpayCount} HMAC event${inbox.razorpayCount === 1 ? "" : "s"} from Razorpay Test Mode.`
+                    : inbox.signedCount > 0
+                      ? `${inbox.signedCount} HMAC event${inbox.signedCount === 1 ? "" : "s"} — signed locally, not from Razorpay servers.`
+                      : "No HMAC-signed webhook yet. Desk buttons skip this path."}
+              </strong>
+            </div>
+            <div className="safety-chips">
+              <span className="chip">HMAC-SHA256</span>
+              {inbox ? <span className="chip">signed {inbox.signedCount}</span> : null}
+              {inbox?.razorpayCount ? <span className="chip go">razorpay {inbox.razorpayCount}</span> : null}
+            </div>
+          </div>
+          {inbox && inbox.events.length === 0 ? (
+            <p className="muted">
+              Run <code>scripts/razorpay/prove-live-webhook.ps1</code>, then Send Test Webhook in the
+              Razorpay dashboard or fail the payment link. This strip polls every 4s.
+            </p>
+          ) : null}
+          {inbox?.events.slice(0, 4).map((item) => (
+            <article
+              key={item.eventId}
+              className={`hmac-row ${item.origin === "RAZORPAY" ? "live" : item.signatureVerified ? "signed" : ""}`}
+            >
+              <span className={`badge ${item.origin === "RAZORPAY" ? "go" : ""}`}>
+                {item.origin === "RAZORPAY"
+                  ? "Razorpay HMAC"
+                  : item.origin === "LOCAL_SCRIPT"
+                    ? "Local HMAC"
+                    : "Desk simulate"}
+              </span>
+              <div>
+                <strong>{item.eventType}</strong>
+                <p>
+                  {item.eventId}
+                  {item.caseId ? ` · case ${item.caseId.slice(0, 14)}…` : ""}
+                  {item.reason ? ` · ${item.reason}` : ""}
+                </p>
+                <span className="muted">
+                  {item.accountId ?? "no account"} · signature {item.signatureVerified ? "ok" : "skipped"} ·{" "}
+                  {item.processed ? "ingested" : "waiting on Kafka"}
+                </span>
+              </div>
+            </article>
+          ))}
+        </section>
+
         <section>
           <p className="muted" style={{ marginBottom: "0.5rem" }}>
             Pitch tip: create <strong>insufficient_funds</strong> (retries fail → pay link) or{" "}
@@ -540,6 +619,7 @@ export function RecoveryDesk() {
                     const created = await createIssue(scenario.slug);
                     await refresh(created.caseId);
                     await loadBriefing();
+                    await loadInbox();
                   })
                 }
               >

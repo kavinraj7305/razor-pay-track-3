@@ -34,7 +34,7 @@ public class WebhookEvent {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(name = "event_id", nullable = false, unique = true, length = 50)
+	@Column(name = "event_id", nullable = false, unique = true, length = 80)
 	private String eventId;
 
 	@Column(nullable = false, length = 30)
@@ -42,6 +42,12 @@ public class WebhookEvent {
 
 	@Column(name = "event_type", nullable = false, length = 100)
 	private String eventType;
+
+	@Column(nullable = false, length = 30)
+	private String intake = "DESK_SIMULATE";
+
+	@Column(name = "signature_verified", nullable = false)
+	private boolean signatureVerified = false;
 
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(nullable = false, columnDefinition = "jsonb")
